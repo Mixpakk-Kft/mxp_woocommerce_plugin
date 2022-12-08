@@ -90,12 +90,13 @@ class Mixpakk
                     $sku     = $product->get_sku();
                     for ($i = 0; $i < $item_data->get_quantity(); $i++) {
                         $divider = get_option('woocommerce_weight_unit') == 'g' ? 1000 : 1;
-                        if ($weight == '') {
+                        $weight = $product->get_weight();
+                        if (empty($weight)) {
                             $weight = 1;
                         }
                         else
                         {
-                            $weight = floatval($product->get_weight()) / $divider;
+                            $weight = floatval($weight) / $divider;
                         }
                         $x = $product->get_width();
                         if ($x == '') {

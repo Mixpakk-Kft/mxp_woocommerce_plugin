@@ -7,7 +7,7 @@ Developer Email: it@mxp.hu
 Text Domain: mxp
 License: GNU General Public License v3.0
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
-Version: 1.3.5
+Version: 1.3.6
 Tested up to: 6.1.1
 
 Mixpakk API csomagfeladás WooCommerce webshopokhoz
@@ -30,6 +30,9 @@ A Mav-IT Kft. Adatkezelési Tájékoztatója: https://mav-it.hu/adatkezelesi-taj
 3. Add fel rendeléseidet a WooCommerce -> Rendelések menüben
 
 == Changelog ==
+
+= 1.3.6 =
+* Tétel súlyátadási bug javítása
 
 = 1.3.5 =
 * Automatikus frissítés funkció
