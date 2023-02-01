@@ -9,7 +9,7 @@
  * Developer: Mixpakk Kft.
  * Developer URI: https://mxp.hu
  * Text Domain: mxp
- * Version: 1.3.6
+ * Version: 1.3.7
  *
  * License: GNU General Public License v3.0
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -40,14 +40,16 @@ $UpdateChecker = PucFactory::buildUpdateChecker(
 
 $UpdateChecker->getVcsApi()->enableReleaseAssets();
 
-if (!defined('ABSPATH')) {
+if (!defined('ABSPATH')) 
+{
     exit; // Exit if accessed directly
 }
 
-if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins')))) {
+if (in_array('woocommerce/woocommerce.php', apply_filters('active_plugins', get_option('active_plugins')))) 
+{
     define('MIXPAKK_DIR_URL', plugin_dir_url(__FILE__));
 
     $mixpakk_settings_obj = new Mixpakk_Settings();
     $mixpakk = new Mixpakk($mixpakk_settings_obj);
-    $mixpakk_filter = new Mixpakk_Filter();
+    $mixpakk_filter = new Mixpakk_Filter($mixpakk, $mixpakk_settings_obj);
 }

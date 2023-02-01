@@ -27,7 +27,7 @@ class Mixpakk_API
             'method' => 'POST',
             'timeout' => 90,
             'redirection' => 5,
-            'httpversion' => '1.0',
+            'httpversion' => '1.1',
             'blocking' => true,
             'headers' => array(),
             'body' => $order,
@@ -36,38 +36,77 @@ class Mixpakk_API
 
         if (is_wp_error($response)) 
         {
+            $order_o = new WC_Order($order_id);
+            $order_o->add_order_note("MXP API: Deliveo kapcsolódási hiba - " . $response->get_error_message());
+            $order_o->save();
             return array('type' => 'error', 'msg' => $response->get_error_message());
+        }
+
+        if (wp_remote_retrieve_response_code($response) != 200)
+        {
+            $order_o = new WC_Order($order_id);
+            $order_o->add_order_note("MXP API: Deliveo kapcsolódási hiba - HTTP hibakód: " . wp_remote_retrieve_response_code($response));
+            $order_o->save();
+            return array('type' => 'error', 'msg' => "HTTP hibakód: " . wp_remote_retrieve_response_code($response));
         }
 
         $result = json_decode($response['body'], true);
 
         if (is_null($result))
         {
-            return array('type' => 'error', 'msg' => 'Invalid Deliveo JSON');
+            $order_o = new WC_Order($order_id);
+            $order_o->add_order_note("MXP API: Deliveo hiba, hibás deliveo JSON válasz!");
+            $order_o->save();
+            return array('type' => 'error', 'msg' => "Hibás deliveo JSON válasz!");
         }
 
-        $general_present = false;
+        $should_delete = false;
+        $stock_error = false;
         if (!empty($result['warnings']))
         {
             foreach ($result['warnings'] as $warning)
             {
                 if ($warning['type'] === 'general')
                 {
-                    $result['msg'] = $warning['text'];
-                    $general_present = true;
-                    unset($result['warnings']);
-                    break;
+                    if ($should_delete == false)
+                    {
+                        $result['msg'] = $warning['text'];
+                        $should_delete = true;
+                    }
+                    else
+                    {
+                        $result['msg'] .= '; ' . $warning['text'];
+                    }
                 }
+                elseif ($warning['type'] === 'quantity' && ($this->api_settings['no_send_on_no_stock'] ?? false) == true)
+                {
+                    $stock_error = true;
+                }
+            }
+
+            if ($should_delete)
+            {
+                unset($result['warnings']);
             }
         }
 
+        if (!$should_delete && $stock_error)
+        {
+            $result['msg'] = __('Egy vagy több termék nincs készleten.', 'mixpakk');
+            $should_delete = true;
+        }
+        else
+        {
+            $stock_error = false;
+        }
+
         $meta_success = false;
-        if (!($result['error_code'] !== 0 || $general_present === true))
+        if (!($result['error_code'] !== 0 || $should_delete === true))
         {
             $meta_success = update_post_meta($order_id, '_mixpakk_exported', 'true', '');
         }
 
-        if ($result['error_code'] !== 0 || $general_present === true || $meta_success === false)
+        if ($result['error_code'] !== 0 || $should_delete === true || $meta_success === false)
         {
             $result['type'] = 'error';
             if (!empty($result['data']))
@@ -83,7 +122,7 @@ class Mixpakk_API
                 ));
             }
 
-            if (!($result['error_code'] !== 0 || $general_present === true))
+            if (!($result['error_code'] !== 0 || $should_delete === true))
             {
                 $result['type'] = 'warning';
                 
@@ -95,6 +134,21 @@ class Mixpakk_API
                 $result['warnings'][]['text'] = "Párhuzamosan már fel lett adva!";
             }
 
+            if ($result['type'] == 'error')
+            {
+                $order_o = new WC_Order($order_id);
+                if ($stock_error)
+                {
+                    $order_o->update_status('wc-mxp-no-stock');
+                }
+                else
+                {
+                    $order_o->update_status('wc-mxp-fail');
+                }
+                $order_o->add_order_note("MXP API: Hiba a feladás során: " . $result['msg']);
+                $order_o->save();
+            }
+
             return $result;
         }
 
@@ -103,21 +157,16 @@ class Mixpakk_API
             return $result;
         }
 
-        //update_post_meta($order_id, '_mixpakk_exported', 'true');
-        update_post_meta($order_id, '_group_code', $result['data'][0]);
+        //update_post_meta($order_id, '_group_code', $result['data'][0]);
+        $order_o = new WC_Order($order_id);
+        $order_o->update_meta_data('_group_code', $result['data'][0]);
+        $order_o->save();
         $this->api_settings_obj->set_delivered_order_status($order_id);
 
         $this->group_id = $result['data'][0];
         $this->api_package_get_url = $this->set_api_url('package/' . $this->group_id);
         $response_get = wp_remote_get($this->api_package_get_url);
         $resp_get = json_decode($response_get['body'], true);
-        //var_dump($resp_get["data"][0]); exit;
-        
-        if (isset($resp_get["data"][0]["shipment_id"])) 
-        {
-            update_post_meta($order_id, '_mixpakk_synced', 'true');
-            update_post_meta($order_id, '_shipment_id', $resp_get["data"][0]["shipment_id"]);
-        }
 
         return $result;
     }
@@ -141,27 +190,6 @@ class Mixpakk_API
         $api_url = $this->api_url;
 
         return str_replace(array('[TYPE]', '[LICENCE]', '[API_KEY]'), array($type, $this->licence, $this->api_key), $api_url);
-    }
-
-    private function set_exported_metas($order_details)
-    {
-
-        if (isset($order_details['group_code'])) {
-            update_post_meta($order_id, '_mixpakk_exported', 'true');
-            update_post_meta($order_id, '_group_code', $order_details['group_code']);
-        }
-
-        $this->api_settings_obj->set_delivered_order_status($order_id);
-    }
-
-    private function set_synced_metas($order_details)
-    {
-
-        if (isset($order_details['shipment_id'])) {
-            update_post_meta($order_id, '_mixpakk_synced', 'true');
-            update_post_meta($order_id, '_shipment_id', $order_details['shipment_id']);
-        }
-
     }
 
     public function session_start()

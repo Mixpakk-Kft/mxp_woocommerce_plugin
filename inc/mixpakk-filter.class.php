@@ -2,9 +2,14 @@
 
 class Mixpakk_Filter
 {
+    protected $mixpakk_o = null;
+    protected $mixpakk_settings_o = null;
 
-    public function __construct()
+    public function __construct($mixpakk, $mixpakk_settings_obj)
     {
+        $this->mixpakk_o = $mixpakk;
+        $this->mixpakk_settings_o = $mixpakk_settings_obj;
+
         // $this->mixpakk_settings_obj = new Mixpakk_Settings();
         add_action('wp_login', array($this, 'updateShippingOptions'));
 
@@ -24,8 +29,7 @@ class Mixpakk_Filter
 
     public function updateShippingOptions()
     {
-        $mixpakk_api = new Mixpakk_API(new Mixpakk_Settings());
-        $options = new Mixpakk_Settings();
+        $mixpakk_api = new Mixpakk_API($this->mixpakk_settings_o);
         // var_dump($options);
         $shipping_options = $mixpakk_api->get_shipping_options();
 
@@ -39,10 +43,9 @@ class Mixpakk_Filter
                     'shipping_default' => $opt->shipping_default,
                 ];
             }
-            $options->mixpakk_settings['shipping_options'] = $opts;
+            $this->mixpakk_settings_o->mixpakk_settings['shipping_options'] = $opts;
 
-            $settings = $options;
-            update_option('mixpakk_settings', json_encode($settings->mixpakk_settings));
+            update_option('mixpakk_settings', json_encode($this->mixpakk_settings_o->mixpakk_settings));
         }
     }
 
@@ -81,7 +84,7 @@ class Mixpakk_Filter
             if ($exported == 'true') {
                 echo '<span class="mixpakk-cell" style="cursor:pointer;font-weight:600;color:#0073aa;" data-groupid="' . $group_code . '"> ' . $group_code . '</span>';
             } else {
-                $mixpakk_api = new Mixpakk_API(new Mixpakk_Settings());
+                $mixpakk_api = new Mixpakk_API($this->mixpakk_settings_o);
                 $selected = '';
                 $opts = json_decode(get_option('mixpakk_settings'))->shipping_options;
                 echo "<input type='hidden' name='order[" . $post->ID . "][id]' value='" . $post->ID . "'>";
@@ -138,19 +141,28 @@ class Mixpakk_Filter
             $exported = get_metadata('post', $post->ID, '_mixpakk_exported', true);
 
             $packaking_unit = json_decode(get_option('mixpakk_settings'))->packaging_unit;
-            if ($exported != 'true') {
+            if ($exported != 'true') 
+            {
+                $order_items = apply_filters('mixpakk_order_filter_items', $order->get_items(), $order);
+                $max_package_count = 0;
+                foreach ($order_items as $order_item)
+                {
+                    $max_package_count += $order_item->get_quantity();
+                }
+                $max_package_count = max(1, $max_package_count);
+
                 switch ((int)$packaking_unit) {
                     case 0:
                         echo "<input title='" . __('Csomagolási egység', 'mixpakk') . "' name='order[" . $post->ID . "][unit]' type='number' readonly value='1'>";
                         break;
                     case 1:
-                        echo "<input title='" . __('Csomagolási egység', 'mixpakk') . "' name='order[" . $post->ID . "][unit]' type='number' readonly value='" . $order->get_item_count() . "'>";
+                        echo "<input title='" . __('Csomagolási egység', 'mixpakk') . "' name='order[" . $post->ID . "][unit]' type='number' readonly value='" . $max_package_count . "'>";
                         break;
                     case 2:
-                        echo "<input title='" . __('Csomagolási egység', 'mixpakk') . "' name='order[" . $post->ID . "][unit]' type='number' value='" . $order->get_item_count() . "' max='" . $order->get_item_count() . "' min='1'>";
+                        echo "<input title='" . __('Csomagolási egység', 'mixpakk') . "' name='order[" . $post->ID . "][unit]' type='number' value='" . $max_package_count . "' max='" . $max_package_count . "' min='1'>";
                         break;
                     default:
-                        echo "<input title='" . __('Csomagolási egység', 'mixpakk') . "' type='number' value='" . $order->get_item_count() . "' max='" . $order->get_item_count() . "' min='1'>";
+                        echo "<input title='" . __('Csomagolási egység', 'mixpakk') . "' type='number' value='" . $max_package_count . "' max='" . $max_package_count . "' min='1'>";
                         break;
                 }
             }
@@ -176,13 +188,7 @@ class Mixpakk_Filter
                     break;
                 case 'exported':
                     $selected_2 = 'selected';
-                    break;
-                case 'not_synced':
-                    $selected_3 = 'selected';
-                    break;
-                case 'synced':
-                    $selected_4 = 'selected';
-                    break;      
+                    break;  
             }
         }
 
@@ -192,13 +198,9 @@ class Mixpakk_Filter
 				<option value="">' . __('Mixpakk szűrés: mind', 'mixpakk') . '</option>
 				<option value="not_exported" ' . $selected_1 . '>' . __('Feladatlan', 'mixpakk') . '</option>
 				<option value="exported" ' . $selected_2 . '>' . __('Feladott', 'mixpakk') . '</option>
-                <option value="not_synced" ' . $selected_3 . '>' . __('Nem szinkronizált', 'mixpakk') . '</option>
-				<option value="synced" ' . $selected_4 . '>' . __('Szinkronizált', 'mixpakk') . '</option>
 			</select>';
         }
     }
-
-
 
     /* In the Orders admin page when the mixpakk filter was applied, this query filter will working  */
     public function apply_not_exported_products_filter($query)
@@ -218,18 +220,6 @@ class Mixpakk_Filter
                 case 'exported':
                     $query_filters = array(
                         'key' => '_mixpakk_exported',
-                        'value' => 'true',
-                    );
-                    break;
-                case 'not_synced':
-                    $query_filters = array(
-                        'key' => '_mixpakk_synced',
-                        'compare' => 'NOT EXISTS',
-                    );
-                    break;
-                case 'synced':
-                    $query_filters = array(
-                        'key' => '_mixpakk_synced',
                         'value' => 'true',
                     );
                     break;
@@ -258,6 +248,7 @@ class Mixpakk_Filter
 <?php
         }
     }
+    
     function custom_bulk_action()
     {
 
@@ -265,9 +256,8 @@ class Mixpakk_Filter
         $action = $wp_list_table->current_action();
 
         switch ($action) {
-            case 'mixpakk_send':
 
-                $mixpakk = new Mixpakk(new Mixpakk_Settings());
+            case 'mixpakk_send':
 
                 ignore_user_abort(true);
 
@@ -284,25 +274,22 @@ class Mixpakk_Filter
                     }
 
                     if (in_array($order['id'], $_GET['post'])) {
-                        $send = $mixpakk->send_by_api((int) $order['id'], $order['option'], $order['unit']);
+                        $send = $this->mixpakk_o->send_by_api((int) $order['id'], $order['option'], $order['unit']);
 
                         if ($send['type'] == "error") 
                         {
                             $failed++;
                             $failed_message[] = 'Rendelés ID: ' . $order['id'] . ' - ' . $send['msg'] . (isset($send['field']) ? ': ' . $send['field'] : '');
-
-                            $order_o = new WC_Order($order['id']);
-                            $order_o->update_status('wc-mxp-fail', "MXP API: Hiba a feladás során: " . $send['msg']);
                         }
                         else
                         {
                             $succeded++;
-                            if (!empty($send['warnings']))
+                        }
+                        if (!empty($send['warnings']))
+                        {
+                            foreach ($send['warnings'] as $warning)
                             {
-                                foreach ($send['warnings'] as $warning)
-                                {
-                                    $warning_message[] = 'Rendelés ID: ' . $order['id'] . ' - ' . $warning['text'] . (isset($warning['sku']) ? ': ' . $warning['sku'] : '');
-                                }
+                                $warning_message[] = 'Rendelés ID: ' . $order['id'] . ' - ' . $warning['text'] . (isset($warning['sku']) ? ': ' . $warning['sku'] : '');
                             }
                         }
                     }
@@ -320,23 +307,6 @@ class Mixpakk_Filter
                 // die;
 
                 $sendback = add_query_arg($feedback, wp_get_referer());
-
-                break;
-            case 'mixpakk_export':
-                $mixpakk = new Mixpakk(new Mixpakk_Settings());
-                $ids = [];
-                if ($_GET['order']) {
-
-                    foreach ($_GET['order'] as $order) {
-                        $ids[] = $order['id'];
-                    }
-                    $mixpakk->generate_csv($ids);
-                } else {
-                }
-                $sendback = add_query_arg(array(
-                    'mixpakk_export_failed' => true
-                ), wp_get_referer());
-                // $sendback = add_query_arg(array('mixpakk_ok' => true, 'succeded' => $succeded, 'failed' => $failed), wp_get_referer());
 
                 break;
             default:

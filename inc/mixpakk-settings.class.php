@@ -42,6 +42,7 @@ class Mixpakk_Settings
             'shipping_options' => '',
             'packaging_unit' => '',
             'customcode_id_is_order_id' => '',
+            'no_send_on_no_stock' => '',
         );
 
         $init_settings = json_encode($init_settings);
@@ -115,11 +116,11 @@ class Mixpakk_Settings
             <td colspan="2"><h2>' . __('Utánvét korrekció') . '</h2></td>
         </tr>
         <td>' . __('Korrekciós szorzó', 'mixpakk') . '</td>
-            <td><input type="number" min="1" step="0.0001" name="currency_multiplier" value="' . ($settings['currency_multiplier'] ?? 1) . '" style="width:500px;" class="required" data-message="' . __('Korrekciós mező kötelező', 'mixpakk') . '" />
+            <td><input type="number" min="0" step="0.0001" name="currency_multiplier" value="' . ($settings['currency_multiplier'] ?? 1) . '" style="width:500px;" class="required" data-message="' . __('Korrekciós mező kötelező', 'mixpakk') . '" />
             <br><small>' . __('Amennyiben webáruháza rendeléseit nem forintban kezeli, kérjük használja ez a mezőt. (pl.: EUR esetében ~0,003 értéket adjon meg.)', 'mixpakk') . '</small>
             </td>
         <tr>
-            <td colspan="2"><h2>Szállítási paraméterek | <small>Ezekkel a paraméterekkel lesz feladva minden csomag.</small></h2></td>
+            <td colspan="2"><h2>' . __('Szállítási paraméterek', 'mixpakk') . ' | <small>' . __('Ezekkel a paraméterekkel lesz feladva minden csomag.', 'mixpakk') . '</small></h2></td>
         </tr>
         <tr>
             <td>' . __('Prioritás (elsőbbségi kézbesítés)', 'mixpakk') . '</td>
@@ -157,6 +158,12 @@ class Mixpakk_Settings
             </td>
         </tr>
         <tr>
+            <td>' . __('Deliveo készlethiány esetén nincs feladás', 'mixpakk') . '</td>
+            <td>
+                <input type="hidden" name="no_send_on_no_stock" value="0" />
+                <input type="checkbox" name="no_send_on_no_stock" value="1" ' . mxp_is_option_checked($settings['no_send_on_no_stock']) . ' />
+            </td>
+        </tr>
         <tr>
             <td>' . __('Ki fizeti a szállítási költséget?', 'mixpakk') . '</td>
             <td>
@@ -172,19 +179,19 @@ class Mixpakk_Settings
             <td>' . $order_status_selector . '</td>
         </tr>
         <tr>
-            <td colspan="2"><h2>Csomag tulajdonságok</small></h2></td>
+            <td colspan="2"><h2>' . __('Csomag tulajdonságok', 'mixpakk') . '</small></h2></td>
         </tr>
         <tr>
             <td>' . __('Csomagolási egység', 'mixpakk') . '</td>
             <td><select name="packaging_unit">
-                <option ' . ($settings['packaging_unit'] == 0 ? 'selected' : '') . ' value="0">Mindig egy</option>
-                <option ' . ($settings['packaging_unit'] == 1 ? 'selected' : '') . ' value="1">Tételenként egy</option>
-                <option ' . ($settings['packaging_unit'] == 2 ? 'selected' : '') . ' value="2">Mindig manuálisan adom meg</option>
+                <option ' . ($settings['packaging_unit'] == 0 ? 'selected' : '') . ' value="0">' . __('Mindig egy', 'mixpakk') . '</option>
+                <option ' . ($settings['packaging_unit'] == 1 ? 'selected' : '') . ' value="1">' . __('Tételenként egy', 'mixpakk') . '</option>
+                <option ' . ($settings['packaging_unit'] == 2 ? 'selected' : '') . ' value="2">' . __('Mindig manuálisan adom meg', 'mixpakk') . '</option>
             </select>
             </td>
         </tr>
         <tr>
-            <td colspan="2"><h2>Szállítási mód</small></h2></td>
+            <td colspan="2"><h2>' . __('Szállítási mód', 'mixpakk') . '</small></h2></td>
         </tr>
         <tr>
             <td>' . __('Alapértelmezett szállítási opció:', 'mixpakk') . '</td>
@@ -252,7 +259,7 @@ class Mixpakk_Settings
     public function save_mixpakk_settings()
     {
         if (isset($_POST['mixpakk_settings'])) {
-            $mixpakk_api = new Mixpakk_API(new Mixpakk_Settings());
+            $mixpakk_api = new Mixpakk_API($this);
             $shipping_options = $mixpakk_api->get_shipping_options();
             $_POST['shipping_options'] = $shipping_options;
 
@@ -276,7 +283,7 @@ class Mixpakk_Settings
     /** Build a selector by Shipping options details from DELIVEO API */
     public function shipping_options_selector($mixpakk_settings)
     {
-        $mixpakk_api = new Mixpakk_API(new Mixpakk_Settings());
+        $mixpakk_api = new Mixpakk_API($this);
         $shipping_options = $mixpakk_api->get_shipping_options();
 
         $api_key = mxp_get_value($mixpakk_settings['api_key']);
@@ -308,7 +315,7 @@ class Mixpakk_Settings
     /** Build a selector by Shipping options details from DELIVEO API */
     public function shipping_options_selector_extra($mixpakk_settings)
     {
-        $mixpakk_api = new Mixpakk_API(new Mixpakk_Settings());
+        $mixpakk_api = new Mixpakk_API($this);
         $shipping_options = $mixpakk_api->get_shipping_options();
 
         $api_key = mxp_get_value($mixpakk_settings['api_key']);
@@ -340,7 +347,7 @@ class Mixpakk_Settings
     /** Build a selector by Shipping options details from DELIVEO API */
     public function shipping_options_selector_abroad($mixpakk_settings)
     {
-        $mixpakk_api = new Mixpakk_API(new Mixpakk_Settings());
+        $mixpakk_api = new Mixpakk_API($this);
         $shipping_options = $mixpakk_api->get_shipping_options();
 
         $api_key = mxp_get_value($mixpakk_settings['api_key']);

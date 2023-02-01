@@ -45,6 +45,15 @@ function mxp_register_custom_order_statuses()
             'label_count' => _n_noop( 'Utánrendelve <span class="count">(%s)</span>', 'Utánrendelve <span class="count">(%s)</span>' )
         )
     );
+    register_post_status('wc-mxp-no-stock', array(
+            'label' => _x('Nincs készleten', 'woocommerce'),
+            'public' => false,
+            'exclude_from_search' => false,
+            'show_in_all_admin_list' => true,
+            'show_in_admin_status_list' => true,
+            'label_count' => _n_noop('Nincs készleten <span class="count">(%s)</span>', 'Nincs készleten <span class="count">(%s)</span>')
+        )
+    );
 }
 add_action('init', 'mxp_register_custom_order_statuses');
 
@@ -55,6 +64,7 @@ function mxp_list_order_status($order_statuses)
     $order_statuses['wc-mxp-in-progress'] = _x('Kiszállítás alatt', 'Order Status');
     $order_statuses['wc-mxp'] = _x('Összekészítés', 'Order Status');
     $order_statuses['wc-utanrendelve'] = _x('Utánrendelve', 'Order Status');
+    $order_statuses['wc-mxp-no-stock'] = _x('Nincs készleten', 'Order Status');
 
     return $order_statuses;
 }

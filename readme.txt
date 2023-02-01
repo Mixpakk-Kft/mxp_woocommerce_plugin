@@ -7,10 +7,10 @@ Developer Email: it@mxp.hu
 Text Domain: mxp
 License: GNU General Public License v3.0
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
-Version: 1.3.6
+Version: 1.3.7
 Tested up to: 6.1.1
 
-Mixpakk API csomagfeladás WooCommerce webshopokhoz
+MXP Webshoplogisztika és Futárszolgálat csomagfeladó plugin WooCommerce webshopokhoz
 
 == Description ==
 
@@ -19,9 +19,15 @@ A plugin használatához érvényes szerződéssel kell rendelkezned a Mixpakk K
 [Ajánlatkérés] https://mixpakk.hu/kapcsolat/
 
 
-A bővítmény a Mav-IT Deliveo szoftverrel való összekötést biztosítja, így annak szolgáltatására támaszkodik (deliveo.nanosoft.hu API).
+A bővítmény a Mav-IT Deliveo szoftverrel való összekötést biztosítja, így annak szolgáltatására támaszkodik (deliveo.eu).
 Bővebb információ a Deliveoról: https://deliveo.eu/hu/
 A Mav-IT Kft. Adatkezelési Tájékoztatója: https://mav-it.hu/adatkezelesi-tajekoztato
+
+= Kompatibilis Csomagpont pluginek =
+
+* [Csomagpontok és szállítási címkék WooCommerce-hez](https://hu.wordpress.org/plugins/hungarian-pickup-points-for-woocommerce/)
+* [PICKPACK CSOMAGPONT BŐVÍTMÉNY](https://weboldalneked.eu/termek/pickpack-csomagpont-bovitmeny/)
+* [Sprinter – Pick Pack Pont integráció](https://wordpress.org/plugins/sprinter-pick-pack-pont-integracio/)
 
 == Installation ==
 
@@ -30,6 +36,15 @@ A Mav-IT Kft. Adatkezelési Tájékoztatója: https://mav-it.hu/adatkezelesi-taj
 3. Add fel rendeléseidet a WooCommerce -> Rendelések menüben
 
 == Changelog ==
+
+= 1.3.7 =
+* Deliveoval való kommunikációs hiba esetén nem kerül a rendelés "Hibás Adat" állapotba többé.
+* Webhook kompatibilitás javítás(metaadat módosítás már küld webhook eventet feladás után, akkor is ha nincs státusz módosítás).
+* Jobb kompatibilitás WPC Product Bundles és WooCommerce Product Bundles pluginekkel(magát a bundle cikk bejegyzést nem adja tovább).
+* WordPress filter alapú címadat és terméklista lekérdezés feladáshoz, ezekre más pluginek is rákapcsolódhatnak az `add_filter` függvény hívással a `mixpakk_order_filter_items` és `mixpakk_order_filter_shipping_data` azonosítókkal. A szűrők paraméterként a feldolgozandó adattömböt és a rendelés objektumát kapják meg.
+* Sprinter Pick Pack Pont Integráció plugin kompatibilitás hozzáadása.
+* Deliveo-készlethiány esetén opcionálisan automatikus küldemény törlés, illetve külön státuszba is kerül(az új státusz: Nincs készleten).
+* Egyéb javítások
 
 = 1.3.6 =
 * Tétel súlyátadási bug javítása
