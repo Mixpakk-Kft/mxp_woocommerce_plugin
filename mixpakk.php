@@ -9,7 +9,7 @@
  * Developer: Mixpakk Kft.
  * Developer URI: https://mxp.hu
  * Text Domain: mxp
- * Version: 1.3.7
+ * Version: 1.3.8
  *
  * License: GNU General Public License v3.0
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -19,6 +19,7 @@
  */
 
 include_once __DIR__ . '/inc/helpers.php';
+include_once __DIR__ . '/inc/mixpakk-exception.class.php';
 include_once __DIR__ . '/inc/mixpakk.class.php';
 include_once __DIR__ . '/inc/csv-export.class.php';
 include_once __DIR__ . '/inc/mixpakk-api.class.php';

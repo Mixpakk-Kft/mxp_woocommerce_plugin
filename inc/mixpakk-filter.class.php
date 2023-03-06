@@ -143,13 +143,23 @@ class Mixpakk_Filter
             $packaking_unit = json_decode(get_option('mixpakk_settings'))->packaging_unit;
             if ($exported != 'true') 
             {
-                $order_items = apply_filters('mixpakk_order_filter_items', $order->get_items(), $order);
                 $max_package_count = 0;
-                foreach ($order_items as $order_item)
+                if ((int)$packaking_unit != 0)
                 {
-                    $max_package_count += $order_item->get_quantity();
+                    try
+                    {
+                        $order_items = apply_filters('mixpakk_order_filter_items', $order->get_items(), $order);
+                        foreach ($order_items as $order_item)
+                        {
+                            $max_package_count += $order_item->get_quantity();
+                        }
+                        $max_package_count = max(1, $max_package_count);
+                    }
+                    catch(\Exception $ex)
+                    {
+                        $max_package_count = 1;
+                    }
                 }
-                $max_package_count = max(1, $max_package_count);
 
                 switch ((int)$packaking_unit) {
                     case 0:
@@ -274,26 +284,54 @@ class Mixpakk_Filter
                     }
 
                     if (in_array($order['id'], $_GET['post'])) {
-                        $send = $this->mixpakk_o->send_by_api((int) $order['id'], $order['option'], $order['unit']);
 
-                        if ($send['type'] == "error") 
+                        try
+                        {
+                            $send = $this->mixpakk_o->send_by_api((int) $order['id'], $order['option'], $order['unit']);
+
+                            if ($send['type'] == "error") 
+                            {
+                                $failed++;
+                                $failed_message[] = 'Rendelés ID: ' . $order['id'] . ' - ' . $send['msg'] . (isset($send['field']) ? ': ' . $send['field'] : '');
+                            }
+                            else
+                            {
+                                $succeded++;
+                            }
+                            if (!empty($send['warnings']))
+                            {
+                                foreach ($send['warnings'] as $warning)
+                                {
+                                    $warning_message[] = 'Rendelés ID: ' . $order['id'] . ' - ' . $warning['text'] . (isset($warning['sku']) ? ': ' . $warning['sku'] : '');
+                                }
+                            }
+                        }
+                        catch (\Mixpakk_Exception $ex)
                         {
                             $failed++;
-                            $failed_message[] = 'Rendelés ID: ' . $order['id'] . ' - ' . $send['msg'] . (isset($send['field']) ? ': ' . $send['field'] : '');
-                        }
-                        else
-                        {
-                            $succeded++;
-                        }
-                        if (!empty($send['warnings']))
-                        {
-                            foreach ($send['warnings'] as $warning)
+                            $failed_message[] = 'Rendelés ID: ' . $order['id'] . ' - ' . $ex->getMessage();
+
+                            $order_o = new WC_Order($order['id']);
+                            $order_o->add_order_note("MXP API: Hiba a feladás során: " . $ex->getMessage());
+                            $order_o->save();
+
+                            if ($ex->doChangeStatus())
                             {
-                                $warning_message[] = 'Rendelés ID: ' . $order['id'] . ' - ' . $warning['text'] . (isset($warning['sku']) ? ': ' . $warning['sku'] : '');
+                                $order_o->update_status('wc-mxp-fail');
                             }
+                        }
+                        catch (\RuntimeException $ex)
+                        {
+                            $failed++;
+                            $failed_message[] = 'Rendelés ID: ' . $order['id'] . ' - Hiba a futtatás során: ' . $ex->getMessage() . ' ' . $ex->getFile() . ':' . $ex->getLine();
+
+                            $order_o = new WC_Order($order['id']);
+                            $order_o->add_order_note("MXP API: Hiba a feladás során: " . $ex->getMessage() . ' ' . $ex->getFile() . ':' . $ex->getLine());
+                            $order_o->save();
                         }
                     }
                 }
+
                 $feedback = array(
                     'mixpakk_ok' => true,
                     'succeded' => $succeded,

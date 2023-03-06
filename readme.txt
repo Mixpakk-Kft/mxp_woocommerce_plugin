@@ -7,7 +7,7 @@ Developer Email: it@mxp.hu
 Text Domain: mxp
 License: GNU General Public License v3.0
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
-Version: 1.3.7
+Version: 1.3.8
 Tested up to: 6.1.1
 
 MXP Webshoplogisztika és Futárszolgálat csomagfeladó plugin WooCommerce webshopokhoz
@@ -37,6 +37,9 @@ A Mav-IT Kft. Adatkezelési Tájékoztatója: https://mav-it.hu/adatkezelesi-taj
 
 == Changelog ==
 
+= 1.3.8 =
+* A filterek hibakezelési funkcionalitásának kiegészítése.
+
 = 1.3.7 =
 * Deliveoval való kommunikációs hiba esetén nem kerül a rendelés "Hibás Adat" állapotba többé.
 * Webhook kompatibilitás javítás(metaadat módosítás már küld webhook eventet feladás után, akkor is ha nincs státusz módosítás).
@@ -44,17 +47,17 @@ A Mav-IT Kft. Adatkezelési Tájékoztatója: https://mav-it.hu/adatkezelesi-taj
 * WordPress filter alapú címadat és terméklista lekérdezés feladáshoz, ezekre más pluginek is rákapcsolódhatnak az `add_filter` függvény hívással a `mixpakk_order_filter_items` és `mixpakk_order_filter_shipping_data` azonosítókkal. A szűrők paraméterként a feldolgozandó adattömböt és a rendelés objektumát kapják meg.
 * Sprinter Pick Pack Pont Integráció plugin kompatibilitás hozzáadása.
 * Deliveo-készlethiány esetén opcionálisan automatikus küldemény törlés, illetve külön státuszba is kerül(az új státusz: Nincs készleten).
-* Egyéb javítások
+* Egyéb javítások.
 
 = 1.3.6 =
-* Tétel súlyátadási bug javítása
+* Tétel súlyátadási bug javítása.
 
 = 1.3.5 =
-* Automatikus frissítés funkció
+* Automatikus frissítés funkció.
 
 = 1.3.3 =
-* Alapértelmezett, Csomagpont, Külföldi szállítási opciók beállításához lehetőség
-* Bugfix
+* Alapértelmezett, Csomagpont, Külföldi szállítási opciók beállításához lehetőség.
+* Bugfix.
 
 = 1.3.2 =
 * WooCommerce státuszok hozzáadása: Kiszállítás alatt, Sikertelen kézbesítés, Hibás adat.

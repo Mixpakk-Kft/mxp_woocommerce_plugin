@@ -170,7 +170,14 @@ class Mixpakk
                 $cartProducts = array();
                 $comment      = $currentOrder->get_customer_note() . ' ';
 
-                $order_items = apply_filters('mixpakk_order_filter_items', $currentOrder->get_items(), $currentOrder);
+                try
+                {
+                    $order_items = apply_filters('mixpakk_order_filter_items', $currentOrder->get_items(), $currentOrder);
+                }
+                catch (\Mixpakk_Exception $ex)
+                {
+                    throw new \Mixpakk_Exception($ex->getMessage() . ' (filter: ' . $ex->getFile() . ':' . $ex->getLine() . ')', $ex->doChangeStatus(), true);
+                }
 
                 // Iterate every order item line
                 foreach ($order_items as $item_id => $item_data) 
@@ -241,7 +248,7 @@ class Mixpakk
                     }
                 }
 
-                $shipping_data = 
+                $package = 
                 [
                     'sender'               => $settings['sender'],
                     'sender_country'       => $settings['sender_country_code'],
@@ -257,14 +264,8 @@ class Mixpakk
                     'consignee_city'       => $currentOrder->get_shipping_city(),
                     'consignee_address'    => $currentOrder->get_shipping_address_1(),
                     'consignee_apartment'  => $currentOrder->get_shipping_address_2(),
-                    'consignee_phone'      => $currentOrder->get_shipping_phone() ?: $currentOrder->get_billing_phone(),
+                    'consignee_phone'      => /*$currentOrder->get_shipping_phone() 5.5.1 WC doesn't support this call ?:*/ $currentOrder->get_billing_phone(),
                     'consignee_email'      => $currentOrder->get_billing_email(),
-                ];
-
-                $shipping_data = apply_filters('mixpakk_order_filter_shipping_data', $shipping_data, $currentOrder);
-
-                // Compile Deliveo post data
-                $package = array(
                     'delivery'             => $shipping,
                     'priority'             => $settings['priority'],
                     'optional_parameter_3' => $settings['saturday'],
@@ -276,9 +277,16 @@ class Mixpakk
                     'tracking'             => $this->get_tracking_id($order_id),
                     'packaging_unit'       => $packaging_unit,
                     'packages'             => $cartProducts,
-                );
+                ];
 
-                $package = array_merge($package, $shipping_data);
+                try
+                {
+                    $package = apply_filters('mixpakk_order_filter_shipping_data', $package, $currentOrder);
+                }
+                catch (\Mixpakk_Exception $ex)
+                {
+                    throw new \Mixpakk_Exception($ex->getMessage() . ' (filter: ' . $ex->getFile() . ':' . $ex->getLine() . ')', $ex->doChangeStatus(), true);
+                }
 
                 $mixpakk_api      = new Mixpakk_API($this->mixpakk_settings_obj);
                 $mixpakk_progress = $mixpakk_api->send_order_items($order_id, $package, $export_allowed);

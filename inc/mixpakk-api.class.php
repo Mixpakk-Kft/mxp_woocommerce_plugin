@@ -164,9 +164,6 @@ class Mixpakk_API
         $this->api_settings_obj->set_delivered_order_status($order_id);
 
         $this->group_id = $result['data'][0];
-        $this->api_package_get_url = $this->set_api_url('package/' . $this->group_id);
-        $response_get = wp_remote_get($this->api_package_get_url);
-        $resp_get = json_decode($response_get['body'], true);
 
         return $result;
     }
