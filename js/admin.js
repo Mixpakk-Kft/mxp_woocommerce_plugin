@@ -148,7 +148,7 @@
 				post: orders
 			},
 			success: function (response) {
-				console.debug(response);
+				console.info(response);
 				if (response.result == 0)
 				{
 					const b64toBlob = (b64Data, contentType='', sliceSize=512) => {
