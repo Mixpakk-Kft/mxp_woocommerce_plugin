@@ -10,7 +10,6 @@ class Mixpakk_Filter
         $this->mixpakk_o = $mixpakk;
         $this->mixpakk_settings_o = $mixpakk_settings_obj;
 
-        // $this->mixpakk_settings_obj = new Mixpakk_Settings();
         add_action('wp_login', array($this, 'updateShippingOptions'));
 
         add_action('restrict_manage_posts', array($this, 'not_exported_products_filter'));
@@ -21,6 +20,8 @@ class Mixpakk_Filter
         add_action('admin_footer-edit.php', array($this, 'custom_bulk_admin_footer'));
         add_action('load-edit.php', array($this, 'custom_bulk_action'));
 
+        add_action( 'manage_posts_extra_tablenav', array($this, 'print_labels_button'), 20, 1 );
+
         add_filter('post_class', function ($classes) {
             $classes[] = 'no-link';
             return $classes;
@@ -30,7 +31,6 @@ class Mixpakk_Filter
     public function updateShippingOptions()
     {
         $mixpakk_api = new Mixpakk_API($this->mixpakk_settings_o);
-        // var_dump($options);
         $shipping_options = $mixpakk_api->get_shipping_options();
 
         $opts = [];
@@ -98,10 +98,8 @@ class Mixpakk_Filter
                     $ppp_id = get_metadata('post', $post->ID, '_pickpack_package_point', true );
                     $postapont_id = get_post_meta( $post->ID, '_postapont', true);
                     $gls_id = get_post_meta( $post->ID, '_gls_package_point', true );
-                
-                    //$provider = get_post_meta($post->ID, '_vp_woo_pont_point_id', true);
 
-                    $shop_id = $ppp_id . $postapont_id . $gls_id . get_post_meta($post->ID, '_vp_woo_pont_point_id', true);
+                    $shop_id = $ppp_id . $postapont_id . $gls_id . get_post_meta($post->ID, '_vp_woo_pont_point_id', true) . get_post_meta($post->ID, '_sprinter_kivalasztott_pickpackpont', true);
                     
                     if (!empty($shop_id))
                     {
@@ -340,10 +338,6 @@ class Mixpakk_Filter
                     'warning_messages' => $warning_message,
                 );
 
-                // echo "<pre>";
-                // var_dump($feedback);
-                // die;
-
                 $sendback = add_query_arg($feedback, wp_get_referer());
 
                 break;
@@ -354,5 +348,24 @@ class Mixpakk_Filter
         wp_redirect($sendback);
 
         exit();
+    }
+
+    function print_labels_button($which)
+    {
+        if ($_GET['post_type'] == 'shop_order' && 'top' === $which)
+        {
+            ?>
+            <div class="alignleft actions custom">
+                <div style="height:32px;" class="button" id="mixpakk_print_labels">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-printer" viewBox="0 0 16 16" style="vertical-align: middle;">
+                        <path d="M2.5 8a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1z"/>
+                        <path d="M5 1a2 2 0 0 0-2 2v2H2a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h1v1a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-1h1a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2H5zM4 3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2H4V3zm1 5a2 2 0 0 0-2 2v1H2a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v-1a2 2 0 0 0-2-2H5zm7 2v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1z"/>
+                    </svg>
+                    <span><?=__('Etikett nyomtatás', 'mixpakk')?></span>
+                </div>
+                <iframe id="mixpakk_label_print_preview" style="display: none;"></iframe>
+            </div>
+            <?php
+        }
     }
 }

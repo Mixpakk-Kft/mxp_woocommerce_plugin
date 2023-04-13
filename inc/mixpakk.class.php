@@ -20,6 +20,7 @@ class Mixpakk
         add_action('wp_ajax_view_package_log', array($this, 'view_package_log'));
         add_action('wp_ajax_package_details', array($this, 'package_details'));
         add_action('wp_ajax_api_custom_send', array($this, 'api_custom_send'));
+        add_action('wp_ajax_mixpakk_generate_labels', array($this, 'generate_labels'));
 
         add_action('admin_notices', array($this, 'mixpakk_success_msg'));
         
@@ -558,13 +559,13 @@ class Mixpakk
     public function label_download()
     {
         $settings    = $this->mixpakk_settings;
-        $label_url   = "https://api.deliveo.eu/label/" . $_POST["group_id"] . "?licence=" . $settings["licence_key"] . "&api_key=" . $settings["api_key"];
+        $label_url   = "https://api.deliveo.eu/label/" . $_POST["group_id"] . "?licence=" . $settings["licence_key"] . "&api_key=" . $settings["api_key"] . "&format=" . $settings["print_format"];
         $package_url = "https://api.deliveo.eu/package/" . $_POST["group_id"] . "?licence=" . $settings["licence_key"] . "&api_key=" . $settings["api_key"];
 
         $tmpfile = download_url($label_url, $timeout = 300);
 
         $check_signature = json_decode(wp_remote_fopen($package_url), true);
-        if ($check_signature['data'][0]['group_id'] == $_POST["group_id"]) {
+        if ($check_signature['data'][0]['deliveo_id'] == $_POST["group_id"]) {
             $permfile = $_POST['group_id'] . '.pdf';
             $destfile = wp_get_upload_dir()['path'] . "/" . $_POST['group_id'] . '.pdf';
             $dest_url = wp_get_upload_dir()['url'] . "/" . $_POST['group_id'] . '.pdf';
@@ -650,12 +651,13 @@ class Mixpakk
         // $signature_url = "https://api.deliveo.eu/signature/" . $_POST["group_id"] . "?licence=" . $settings["licence_key"] . "&api_key=" . $settings["api_key"];
 
         $package_details = json_decode(wp_remote_fopen($package_log_url), true)['data'];
-        if ($package_details[0]['dropped_off'] != null) {
-            $delivered = 'Átvette (' . $package_details[0]['dropped_off'] . ')';
-        } else {
-            $delivered = 'A csomag átvétele még nem történt meg!';
-        }
         if (isset($package_details[0])) {
+
+            if ($package_details[0]['dropped_off'] != null) {
+                $delivered = 'Átvette (' . $package_details[0]['dropped_off'] . ')';
+            } else {
+                $delivered = 'A csomag átvétele még nem történt meg!';
+            }
 
             echo '<div class="content">' . $delivered . '<br></div>';
             echo '<div class="group_info" style="background-image:url(' . MIXPAKK_DIR_URL . 'images/mixpakk-icon.png' . ')">';
@@ -672,6 +674,100 @@ class Mixpakk
             echo '<h4>A csomag nem található a Mixpakk rendszerben!</h4>';
             echo '</div>';
         }
+        wp_die();
+    }
+
+    public function generate_labels()
+    {
+        $output_json = array();
+        $output_json['result'] = 0;
+        $output_json['messages'] = array();
+        $output_json['data'] = array();
+
+        $request_url = "https://api.deliveo.eu/label?licence=" . $this->mixpakk_settings["licence_key"] . "&api_key=" . $this->mixpakk_settings["api_key"] . "&format=" . $this->mixpakk_settings["print_format"];
+
+        $output_json['url'] = $request_url;
+        try
+        {
+            $group_ids = array();
+            $order_ids = array();
+            foreach ($_POST['post'] as $order_id)
+            {
+                $order_o = new WC_Order($order_id);
+                $group_id = $order_o->get_meta('_group_code');
+                if (!empty($group_id))
+                {
+                    $group_ids[] = $group_id;
+                    $order_ids[] = $order_id;
+                }
+            }
+    
+            if (empty($group_ids))
+            {
+                throw new \Exception(__('Nincs rendelés kijelölve', 'mixpakk'));
+            }
+    
+            $current_group_ids = array_slice($group_ids, 0, 25);
+            $order_ids = array_slice($order_ids, 25);
+            
+            set_time_limit(300);
+
+            // Cant get headers from wp_remote_* for some reason so using curl.
+            /*$response = wp_remote_request($request_url . '&deliveo_ids=' . implode(',', $current_group_ids), array(
+                'method' => 'GET',
+                'timeout' => 240,
+                'redirection' => 5,
+                'blocking' => true,
+            ));
+
+            if (is_wp_error($response)) 
+            {
+                throw new \Exception(__($response->get_error_message(), 'mixpakk'));
+            }
+
+            $output_json['data']['content'] = base64_encode($response['body']);
+            $output_json['data']['remaining'] = array_slice($group_ids, 25);*/
+
+            $curl = curl_init($request_url . '&deliveo_ids=' . implode(',', $current_group_ids));
+
+            curl_setopt($curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+            curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($curl, CURLOPT_TIMEOUT, 240);
+            curl_setopt($curl, CURLOPT_MAXREDIRS, 5);
+    
+            $result = curl_exec($curl);
+    
+            if (curl_getinfo($curl, CURLINFO_RESPONSE_CODE) !== 200)
+            {
+                throw new \Exception(__('Deliveo válasz nem 200!', 'mixpakk'));
+            }
+
+            $content_type = curl_getinfo($curl, CURLINFO_CONTENT_TYPE);
+
+            curl_close($curl);
+            
+            if ($content_type != 'application/pdf')
+            {
+                $output_json['data']['remaining'] = $order_ids;
+                throw new \Exception(__('Nincs címke!', 'mixpakk'));
+            }
+
+            $output_json['data']['content'] = base64_encode($result);
+            $output_json['data']['remaining'] = $order_ids;
+        }
+        catch (\Exception $ex)
+        {
+            $output_json['result'] = 1;
+            $output_json['messages'][] = array(
+                'display_target' => 'message',
+                'severity' => 'error',
+                'message' => $ex->getMessage(),
+            );
+        }
+
+        header('Content-Type: application/json');
+        ?><?=json_encode($output_json)?><?php
+
         wp_die();
     }
 }

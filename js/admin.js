@@ -137,4 +137,115 @@
 			}
 		});
 	}
+
+	async function getLabels(orders, download)
+	{
+		await $.ajax({
+			type: "POST",
+			url: ajaxurl,
+			data: {
+				action: 'mixpakk_generate_labels',
+				post: orders
+			},
+			success: function (response) {
+				console.debug(response);
+				if (response.result == 0)
+				{
+					const b64toBlob = (b64Data, contentType='', sliceSize=512) => {
+						const byteCharacters = atob(b64Data);
+						const byteArrays = [];
+					  
+						for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+							const slice = byteCharacters.slice(offset, offset + sliceSize);
+						
+							const byteNumbers = new Array(slice.length);
+							for (let i = 0; i < slice.length; i++) {
+								byteNumbers[i] = slice.charCodeAt(i);
+							}
+						
+							const byteArray = new Uint8Array(byteNumbers);
+							byteArrays.push(byteArray);
+						}
+					  
+						const blob = new Blob(byteArrays, {type: contentType});
+						return blob;
+					}
+
+					var blob = b64toBlob(response.data.content, 'application/pdf');
+					
+					var URL = window.URL || window.webkitURL;
+					var downloadUrl = URL.createObjectURL(blob);
+
+					if (!download)
+					{
+						document.getElementById('mixpakk_label_print_preview').onload = function() 
+						{
+							document.getElementById('mixpakk_label_print_preview').contentWindow.focus(); 
+							document.getElementById('mixpakk_label_print_preview').contentWindow.print();
+						};
+						
+						$('#mixpakk_label_print_preview').attr('src', downloadUrl);
+						
+						URL.revokeObjectURL(downloadUrl);
+					}
+					else
+					{
+						if (window.navigator.msSaveOrOpenBlob) 
+						{
+							window.navigator.msSaveOrOpenBlob(file, filename);
+						}
+						else
+						{
+							var a = document.createElement("a")
+							a.href = downloadUrl;
+							a.download = 'labels_' + new Date().toISOString() + '.pdf';
+							document.body.appendChild(a);
+							a.click();
+							setTimeout(function() {
+								document.body.removeChild(a);
+								URL.revokeObjectURL(downloadUrl);
+							}, 0); 
+						}
+					}
+					orders = response.data.remaining;
+				}
+				else
+				{
+					if (response.data.remaining)
+					{
+						orders = response.data.remaining;
+					}
+					else
+					{
+						orders = [];
+					}
+				}
+			},
+			error: function (errorThrown) {
+				orders = [];
+				console.warn(errorThrown);
+			}
+		});
+
+		return orders;
+	}
+
+	$('#mixpakk_print_labels').on('click', async function (event) 
+	{
+		$('#mixpakk_print_labels').attr('disabled', '');
+		var orders = [];
+		$('#the-list input[type="checkbox"][name="post[]"]:checked').each(function(index) 
+		{
+			orders.push($(this).val());
+		});
+		var download = (orders.length > 25);
+		
+		while (orders.length != 0)
+		{
+			orders = await getLabels(orders, download);
+		}
+		$('#mixpakk_print_labels').removeAttr('disabled');
+		//.finally(() => {$('#mixpakk_print_labels').removeAttr('disabled');})
+	});
+
 })(jQuery)

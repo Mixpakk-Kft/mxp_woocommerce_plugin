@@ -43,6 +43,7 @@ class Mixpakk_Settings
             'packaging_unit' => '',
             'customcode_id_is_order_id' => '',
             'no_send_on_no_stock' => '',
+            'print_format' => 'A4',
         );
 
         $init_settings = json_encode($init_settings);
@@ -179,15 +180,26 @@ class Mixpakk_Settings
             <td>' . $order_status_selector . '</td>
         </tr>
         <tr>
+            <td>' . __('Címke papír formátum', 'mixpakk') . '</td>
+            <td>
+                <select name="print_format">
+                    <option ' . ($settings['print_format'] == 'A4' ? 'selected' : '') . ' value="A4">' . __('A4', 'mixpakk') . '</option>
+                    <option ' . ($settings['print_format'] == 'A5' ? 'selected' : '') . ' value="A5">' . __('A5', 'mixpakk') . '</option>
+                    <option ' . ($settings['print_format'] == 'A6' ? 'selected' : '') . ' value="A6">' . __('A6', 'mixpakk') . '</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
             <td colspan="2"><h2>' . __('Csomag tulajdonságok', 'mixpakk') . '</small></h2></td>
         </tr>
         <tr>
             <td>' . __('Csomagolási egység', 'mixpakk') . '</td>
-            <td><select name="packaging_unit">
-                <option ' . ($settings['packaging_unit'] == 0 ? 'selected' : '') . ' value="0">' . __('Mindig egy', 'mixpakk') . '</option>
-                <option ' . ($settings['packaging_unit'] == 1 ? 'selected' : '') . ' value="1">' . __('Tételenként egy', 'mixpakk') . '</option>
-                <option ' . ($settings['packaging_unit'] == 2 ? 'selected' : '') . ' value="2">' . __('Mindig manuálisan adom meg', 'mixpakk') . '</option>
-            </select>
+            <td>
+                <select name="packaging_unit">
+                    <option ' . ($settings['packaging_unit'] == 0 ? 'selected' : '') . ' value="0">' . __('Mindig egy', 'mixpakk') . '</option>
+                    <option ' . ($settings['packaging_unit'] == 1 ? 'selected' : '') . ' value="1">' . __('Tételenként egy', 'mixpakk') . '</option>
+                    <option ' . ($settings['packaging_unit'] == 2 ? 'selected' : '') . ' value="2">' . __('Mindig manuálisan adom meg', 'mixpakk') . '</option>
+                </select>
             </td>
         </tr>
         <tr>

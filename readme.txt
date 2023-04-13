@@ -7,7 +7,7 @@ Developer Email: it@mxp.hu
 Text Domain: mxp
 License: GNU General Public License v3.0
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
-Version: 1.3.8
+Version: 1.3.9
 Tested up to: 6.1.1
 
 MXP Webshoplogisztika és Futárszolgálat csomagfeladó plugin WooCommerce webshopokhoz
@@ -31,11 +31,17 @@ A Mav-IT Kft. Adatkezelési Tájékoztatója: https://mav-it.hu/adatkezelesi-taj
 
 == Installation ==
 
-1. Telepítsd és kapcsold be a bővítményt
-2. Add meg a csatlakozáshoz szükséges adatokat a WooCommerce -> Mixpakk menüpontban
-3. Add fel rendeléseidet a WooCommerce -> Rendelések menüben
+1. Töltsed le a [legfrissebb verziót](https://github.com/Mixpakk-Kft/mxp_woocommerce_plugin/releases/latest)
+2. Telepítsd és kapcsold be a bővítményt a Wordpress Plugin kezelő felületén
+3. Add meg a csatlakozáshoz szükséges adatokat a WooCommerce -> Mixpakk menüpontban
+4. Add fel rendeléseidet a WooCommerce -> Rendelések menüben
 
 == Changelog ==
+
+= 1.3.9 =
+* Tömeges címkenyomtatás lehetősége, lap formátum beállítással. <=25 címke nyomtatási előnézetbe kerül, 25nél több címkét lementi pdf fájlokba 25ösével.
+* Sprinter PPP integrációs csomagpont rendelések nem jelentek meg a csomagpont szállítási opcióval alapértelmezetten.
+* Deliveo március 31 update fix.
 
 = 1.3.8 =
 * A filterek hibakezelési funkcionalitásának kiegészítése.
