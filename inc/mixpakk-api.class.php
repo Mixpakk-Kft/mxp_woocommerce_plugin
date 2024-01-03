@@ -7,7 +7,6 @@ class Mixpakk_API
     {
         $this->api_settings_obj = $api_settings_obj;
         $this->api_settings = $this->api_settings_obj->get_mixpakk_settings();
-        $this->groupid = get_metadata('post', $order_id, '_group_code', true );
         $this->licence = $this->api_settings['licence_key'];
         $this->api_key = $this->api_settings['api_key'];
         $this->api_url = 'https://api.deliveo.eu/[TYPE]?licence=[LICENCE]&api_key=[API_KEY]';

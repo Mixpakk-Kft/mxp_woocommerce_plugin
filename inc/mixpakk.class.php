@@ -30,6 +30,7 @@ class Mixpakk
         add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_VisztCsomagpontok'), 10, 2);
         add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_PickPackCsomagpont'), 10, 2);
         add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_SprinterPPP'), 10, 2);
+        add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_FurgeRomania'), 10, 2);
     }
 
     public function footer_scripts($hook)
@@ -70,6 +71,10 @@ class Mixpakk
         $csv_export->export($csv_content);
     }
 
+    /**
+     * https://wordpress.org/plugins/woo-product-bundle/
+     * https://woocommerce.com/products/product-bundles/
+     */
     public function filterOrderItems($order_items, $order)
     {
         foreach ($order_items as $item_id => $item_data) 
@@ -88,6 +93,9 @@ class Mixpakk
         return $order_items;
     }
 
+    /**
+     * https://hu.wordpress.org/plugins/hungarian-pickup-points-for-woocommerce/
+     */
     public function filterShipping_VisztCsomagpontok($customer_data, $order)
     {
         $shop_id = $order->get_meta('_vp_woo_pont_point_id', true);
@@ -106,6 +114,9 @@ class Mixpakk
         return $customer_data;
     }
 
+    /**
+     * https://weboldalneked.eu/wordpress-bovitmenyek/
+     */
     public function filterShipping_PickPackCsomagpont($customer_data, $order)
     {
         $ppp_id = $order->get_meta('_pickpack_package_point', true);
@@ -122,6 +133,9 @@ class Mixpakk
         return $customer_data;
     }
 
+    /**
+     * https://www.sprinter.hu/segedanyagok/sprinter-pick-pack-pont-woocommerce-plugin/
+     */
     public function filterShipping_SprinterPPP($customer_data, $order)
     {
         $shop_json = $order->get_meta('_sprinter_kivalasztott_pickpackpont', true);
@@ -137,8 +151,29 @@ class Mixpakk
         
         return $customer_data;
     }
+
+    /**
+     * Pactic Romania order submission.
+     * These orders need to have a romanian source location, otherwise the order sending request will fail.
+     * In this case it's a Pactic location.
+     * This might change and needs to be disabled if the carrier of Pactic changes down the line.
+     */
+    public function filterShipping_FurgeRomania($customer_data, $order)
+    {
+        // Delivery method ID has to be 52 and also the recipient's 
+        if (($customer_data['consignee_country'] ?? '') == 'RO' && ($customer_data['delivery'] ?? null) == 52)
+        {
+            $customer_data['sender_country'] = 'RO'; 
+            $customer_data['sender_zip'] = '417078';
+            $customer_data['sender_city'] = 'Sântion';
+            $customer_data['sender_address'] = 'Santion nr 702B';
+            $customer_data['sender_apartment'] = 'C2';
+        }
+
+        return $customer_data;
+    }
     
-    public function send_by_api($orderID, $shipping = false, $unit)
+    public function send_by_api($orderID, $shipping = false, $unit = null)
     {
         $settings       = $this->mixpakk_settings;
         $export_allowed = $this->export_allowed;
@@ -163,7 +198,8 @@ class Mixpakk
                 $cod          = $this->get_cod($order_id);
                 $insurance    = (int)$settings['insurance'];
                 
-                if ($insurance == 1) {
+                if ($insurance == 1) 
+                {
                     $insurance = get_metadata('post', $order_id, '_order_total', true);
                 }
 
@@ -272,12 +308,14 @@ class Mixpakk
                     'optional_parameter_3' => $settings['saturday'],
                     'optional_parameter_2' => $insurance,
                     'cod'                  => $cod * ($settings['currency_multiplier'] ?? 1),
-                    'currency'             => get_option('woocommerce_currency'),
+                    'currency'             => $currentOrder->get_currency()/*get_option('woocommerce_currency')*/,
                     'freight'              => $settings['freight'],
                     'comment'              => $comment,
                     'tracking'             => $this->get_tracking_id($order_id),
                     'packaging_unit'       => $packaging_unit,
+                    'colli'                => $packaging_unit, // Deliveo update as of 2024 january
                     'packages'             => $cartProducts,
+                    'API Connect Version'  => 'MXP Woocommerce Plugin v1.3.10',
                 ];
 
                 try
@@ -684,9 +722,8 @@ class Mixpakk
         $output_json['messages'] = array();
         $output_json['data'] = array();
 
-        $request_url = "https://api.deliveo.eu/label?licence=" . $this->mixpakk_settings["licence_key"] . "&api_key=" . $this->mixpakk_settings["api_key"] . "&format=" . $this->mixpakk_settings["print_format"];
+        $request_url = "https://api.deliveo.eu/label?licence=" . $this->mixpakk_settings["licence_key"] . "&api_key=" . $this->mixpakk_settings["api_key"] . "&format=" . ($this->mixpakk_settings["print_format"] ?? 'A4');
 
-        $output_json['url'] = $request_url;
         try
         {
             $group_ids = array();

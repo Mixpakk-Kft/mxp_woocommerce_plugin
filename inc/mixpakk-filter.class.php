@@ -81,9 +81,12 @@ class Mixpakk_Filter
             $exported = get_metadata('post', $post->ID, '_mixpakk_exported', true);
             $group_code = get_metadata('post', $post->ID, '_group_code', true);
 
-            if ($exported == 'true') {
+            if ($exported == 'true') 
+            {
                 echo '<span class="mixpakk-cell" style="cursor:pointer;font-weight:600;color:#0073aa;" data-groupid="' . $group_code . '"> ' . $group_code . '</span>';
-            } else {
+            } 
+            else
+            {
                 $mixpakk_api = new Mixpakk_API($this->mixpakk_settings_o);
                 $selected = '';
                 $opts = json_decode(get_option('mixpakk_settings'))->shipping_options;
@@ -93,20 +96,6 @@ class Mixpakk_Filter
                 $delivery_option_default = $mixpakk_api->api_settings_obj->mixpakk_settings["delivery"];
                 $delivery_option_preferred = $delivery_option_default;
 
-                if (!empty($mixpakk_api->api_settings_obj->mixpakk_settings["delivery_extra"]))
-                {
-                    $ppp_id = get_metadata('post', $post->ID, '_pickpack_package_point', true );
-                    $postapont_id = get_post_meta( $post->ID, '_postapont', true);
-                    $gls_id = get_post_meta( $post->ID, '_gls_package_point', true );
-
-                    $shop_id = $ppp_id . $postapont_id . $gls_id . get_post_meta($post->ID, '_vp_woo_pont_point_id', true) . get_post_meta($post->ID, '_sprinter_kivalasztott_pickpackpont', true);
-                    
-                    if (!empty($shop_id))
-                    {
-                        $delivery_option_preferred = $mixpakk_api->api_settings_obj->mixpakk_settings["delivery_extra"];
-                    }
-                }
-
                 if (!empty($mixpakk_api->api_settings_obj->mixpakk_settings["delivery_abroad"]))
                 {                    
                     if ($order->get_shipping_country() != 'HU')
@@ -115,14 +104,37 @@ class Mixpakk_Filter
                     }
                 }
 
-                foreach ($opts as $option) {
-                    if ($delivery_option_preferred == $option->value) {
+                if (!empty($mixpakk_api->api_settings_obj->mixpakk_settings["delivery_extra"]))
+                {
+                    try
+                    {
+                        // On default behaviour empty package data should work too, not needing to populate package data.
+                        $package = [];
+                        $package = apply_filters('mixpakk_order_filter_shipping_data', $package, $order);
+                        if (!empty($package['shop_id']))
+                        {
+                            $delivery_option_preferred = $mixpakk_api->api_settings_obj->mixpakk_settings["delivery_extra"];
+                        }
+                    }
+                    catch(\Exception $ex)
+                    {
+                        // Do not change the default delivery method.
+                    }
+                }
+
+                foreach ($opts as $option) 
+                {
+                    if ($delivery_option_preferred == $option->value) 
+                    {
                         $selected = 'selected';
-                    } else {
+                    } 
+                    else 
+                    {
                         $selected = '';
                     }
                     echo '<option  value="' . $option->value . '" ' . $selected . '>' . $option->description . '</option>';
                 }
+
                 echo '</select>';
             }
         }

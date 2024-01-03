@@ -7,7 +7,7 @@ Developer Email: it@mxp.hu
 Text Domain: mxp
 License: GNU General Public License v3.0
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
-Version: 1.3.9
+Version: 1.3.10
 Tested up to: 6.1.1
 
 MXP Webshoplogisztika és Futárszolgálat csomagfeladó plugin WooCommerce webshopokhoz
@@ -37,6 +37,12 @@ A Mav-IT Kft. Adatkezelési Tájékoztatója: https://mav-it.hu/adatkezelesi-taj
 4. Add fel rendeléseidet a WooCommerce -> Rendelések menüben
 
 == Changelog ==
+
+= 1.3.10 =
+* Deliveo 2024 január 01 update fix.
+* UI csomagpont szállítási mód automatikus választás fix filterrel.
+* Cheapest Románia szállítási mód automatizálás.
+* Egyedi API azonosító jelölés hozzáadása.
 
 = 1.3.9 =
 * Tömeges címkenyomtatás lehetősége, lap formátum beállítással. <=25 címke nyomtatási előnézetbe kerül, 25nél több címkét lementi pdf fájlokba 25ösével.

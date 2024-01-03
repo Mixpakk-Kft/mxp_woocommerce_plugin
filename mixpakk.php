@@ -9,7 +9,7 @@
  * Developer: Mixpakk Kft.
  * Developer URI: https://mxp.hu
  * Text Domain: mxp
- * Version: 1.3.9
+ * Version: 1.3.10
  *
  * License: GNU General Public License v3.0
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
