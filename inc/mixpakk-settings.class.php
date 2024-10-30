@@ -2,6 +2,8 @@
 
 class Mixpakk_Settings
 {
+    public $mixpakk_settings;
+    
     public function __construct()
     {
         $this->mixpakk_settings = $this->get_mixpakk_settings();
@@ -42,9 +44,17 @@ class Mixpakk_Settings
             'shipping_options' => '',
             'packaging_unit' => '',
             'customcode_id_is_order_id' => '',
-            'no_send_on_no_stock' => '',
             'print_format' => 'A4',
+            'post_method' => 'compat',
         );
+
+        if (class_exists(\Automattic\WooCommerce\Utilities\OrderUtil::class))
+        {
+            if (\Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled())
+            {
+                $init_settings['post_method'] = 'queue';
+            }
+        }
 
         $init_settings = json_encode($init_settings);
         update_option('mixpakk_settings', $init_settings);
@@ -56,7 +66,7 @@ class Mixpakk_Settings
     /* Add Mixpakk settings page Woocommerce submenu */
     public function settings_page()
     {
-        add_submenu_page('woocommerce', 'Mixpakk', 'Mixpakk', 'manage_options', 'mixpakk-settings', array($this, 'settings_page_content'));
+        add_submenu_page('woocommerce', 'Mixpakk', 'Mixpakk', 'manage_woocommerce', 'mixpakk-settings', array($this, 'settings_page_content'));
     }
 
     /* Settings page content (Save settings form) */
@@ -68,6 +78,15 @@ class Mixpakk_Settings
         $shipping_options_selector_extra = $this->shipping_options_selector_extra($settings);
         $shipping_options_selector_abroad = $this->shipping_options_selector_abroad($settings);
         $order_status_selector = $this->order_status_selector($settings);
+
+        $compat_available = true;
+        if (class_exists(\Automattic\WooCommerce\Utilities\OrderUtil::class))
+        {
+            if (\Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled())
+            {
+                $compat_available = false;
+            }
+        }
 
         /* Declare variables because of undefined index errors, or create a parser function */
         if ((strlen($shipping_options_selector) > 200)) {
@@ -159,13 +178,6 @@ class Mixpakk_Settings
             </td>
         </tr>
         <tr>
-            <td>' . __('Deliveo készlethiány esetén nincs feladás', 'mixpakk') . '</td>
-            <td>
-                <input type="hidden" name="no_send_on_no_stock" value="0" />
-                <input type="checkbox" name="no_send_on_no_stock" value="1" ' . mxp_is_option_checked($settings['no_send_on_no_stock']) . ' />
-            </td>
-        </tr>
-        <tr>
             <td>' . __('Ki fizeti a szállítási költséget?', 'mixpakk') . '</td>
             <td>
                 <label for="freight-felado">' . __('Feladó', 'mixpakk') . '</label>
@@ -173,20 +185,6 @@ class Mixpakk_Settings
 
                 <label for="freight-cimzett">' . __('Címzett', 'mixpakk') . '</label>
                 <input type="radio" name="freight" value="cimzett" id="freight-cimzett" ' . mxp_is_radio_checked($settings['freight'], 'cimzett') . ' />
-            </td>
-        </tr>
-        <tr>
-            <td>' . __('A feladottak állapotát erre módosítsa:', 'mixpakk') . '</td>
-            <td>' . $order_status_selector . '</td>
-        </tr>
-        <tr>
-            <td>' . __('Címke papír formátum', 'mixpakk') . '</td>
-            <td>
-                <select name="print_format">
-                    <option ' . ($settings['print_format'] == 'A4' ? 'selected' : '') . ' value="A4">' . __('A4', 'mixpakk') . '</option>
-                    <option ' . ($settings['print_format'] == 'A5' ? 'selected' : '') . ' value="A5">' . __('A5', 'mixpakk') . '</option>
-                    <option ' . ($settings['print_format'] == 'A6' ? 'selected' : '') . ' value="A6">' . __('A6', 'mixpakk') . '</option>
-                </select>
             </td>
         </tr>
         <tr>
@@ -219,6 +217,32 @@ class Mixpakk_Settings
         </tr>
 
         <tr>
+            <td colspan="2"><h2>' . __('Működés', 'mixpakk') . '</h2></td>
+        </tr>
+        <tr>
+            <td>' . __('A feladottak állapotát erre módosítsa:', 'mixpakk') . '</td>
+            <td>' . $order_status_selector . '</td>
+        </tr>
+        <tr>
+            <td>' . __('Címke papír formátum', 'mixpakk') . '</td>
+            <td>
+                <select name="print_format">
+                    <option ' . ($settings['print_format'] == 'A4' ? 'selected' : '') . ' value="A4">' . __('A4', 'mixpakk') . '</option>
+                    <option ' . ($settings['print_format'] == 'A5' ? 'selected' : '') . ' value="A5">' . __('A5', 'mixpakk') . '</option>
+                    <option ' . ($settings['print_format'] == 'A6' ? 'selected' : '') . ' value="A6">' . __('A6', 'mixpakk') . '</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <td>' . __('Csomag API feladás módja:', 'mixpakk') . '</td>
+            <td>
+                <select name="post_method">
+                    <option ' . ($settings['post_method'] == 'compat' ? 'selected' : '') . ' value="compat"' . ($compat_available ? '' : ' disabled') . '>' . __('Klasszikus szinkron feladás', 'mixpakk') . '</option>
+                    <option ' . ($settings['post_method'] == 'queue' ? 'selected' : '') . ' value="queue">' . __('WC Queue API feladás', 'mixpakk') . '</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
             <td></td>
             <td><button name="mixpakk_settings" type="submit" class="button button-primary mixpakk_settings_save">' . __('Mentés', 'mixpakk') . '</button></td>
         </tr>';
@@ -229,7 +253,7 @@ class Mixpakk_Settings
         $content = '
         <h1>' . __('Beállítások', 'mixpakk') . '</h1>
         <tr>
-        <td colspan="2"><h2>Technikai segítségnyújtás: <a href="mailto:helpdesk@mxp.hu">helpdesk@mxp.hu</a> </small></h2></td>
+        <td colspan="2"><h2>Technikai segítségnyújtás: <a href="mailto:it@mxp.hu">it@mxp.hu</a> </small></h2></td>
                 </tr>
         <form action="" method="post" id="mixpakk-settings-form" class="mixpakk-settings-form">
             <div class="validation-messages hidden"></div>
@@ -264,7 +288,24 @@ class Mixpakk_Settings
             $settings = $this->init_mixpakk_settings();
         }
 
-        return json_decode($settings, true);
+        $ret = json_decode($settings, true);
+
+        if (empty($ret['print_format']))
+        {
+            $ret['print_format'] = 'A4';
+        }
+
+        if (empty($ret['post_method']))
+        {
+            $ret['post_method'] = 'classic';
+        }
+
+        if (get_option('woocommerce_custom_orders_table_enabled') === 'yes')
+        {
+            $ret['post_method'] = 'queue';
+        }
+
+        return $ret;
     }
 
     /* Parse Mixpakk options array to json strings and save to DB */
@@ -460,13 +501,12 @@ class Mixpakk_Settings
         }
     }
 
-    public function set_delivered_order_status($order_id)
+    public function set_delivered_order_status($order)
     {
         $settings = $this->mixpakk_settings;
         $delivered_status = $settings['delivered_status'];
-        $order = new WC_Order($order_id);
 
-        if (!empty($delivered_status)) 
+        if (!empty($delivered_status))
         {
             $order->update_status($delivered_status, 'MXP API:');
         }
@@ -474,7 +514,6 @@ class Mixpakk_Settings
 
     public function admin_notice__success()
     {
-
         $class = 'notice notice-success is-dismissible';
         $message = __('Beállítások mentve, authentikációs adatok módosításakor ellenőrizzük a szállítási opciókat!', 'mixpakk');
 

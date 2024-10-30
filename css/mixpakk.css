@@ -176,3 +176,115 @@
     margin: 0;
     margin-bottom: 10px;
 }
+
+.order-status.status-mxp-fail
+{
+    background: #eba3cd;
+    color: #761952;
+}
+
+.order-status.status-mxp-refused
+{
+    background: #eba3a3;
+    color: #761919;
+}
+
+.order-status.status-mxp
+{
+    background: #98d6e6;
+    color: #1b6c84;
+}
+
+.order-status.status-mxp-in-progress
+{
+    background: #98d6e6;
+    color: #1b6c84;
+}
+
+.order-status.status-utanrendelve
+{
+    background: #f8dda7;
+    color: #94660c;
+}
+
+.order-status.status-mxp-no-stock
+{
+    background: #f8cea7;
+    color: #94420c;
+}
+
+.mixpakk-submitting 
+{
+    font-weight:600;
+    color:#0073aa;
+    display: inline-flex;
+    align-items: center;    
+}
+
+.mixpakk-submitting>img
+{
+    padding-right: 4px;
+}
+
+.mixpakk-busy
+{
+    display: none !important;
+}
+
+.mixpakk-failed
+{
+    background: #fdefef;
+}
+
+.mixpakk-success
+{
+    background: #ecffea;
+}
+
+table.striped > tbody > :nth-child(2n+1).mixpakk-failed
+{
+    background: #f4dede;
+}
+
+table.striped > tbody > :nth-child(2n+1).mixpakk-success
+{
+    background: #e2f5e1;
+}
+
+.mxp-groupid-container
+{
+    display: flex;
+    justify-content: space-between;
+}
+
+.mxp-groupid-container>input
+{
+    flex-shrink: 4;
+    width: 100%;
+}
+
+.mxp-groupid-container>select
+{
+    flex-shrink: 3;
+    width: 100%;
+}
+
+.mxp-groupid-container .mixpakk-cell, .mxp-groupid-container .mixpakk-submitting
+{
+    font-size: 1.3em;
+    margin: auto 1rem auto 0;
+}
+
+#mxp_deliveo_id_box .inside {
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+    margin: 0;
+}
+
+.mixpakk-cell
+{
+    cursor: pointer;
+    font-weight:600;
+    color:#0073aa;
+    text-wrap: nowrap;
+}

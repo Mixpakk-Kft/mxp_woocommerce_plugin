@@ -36,13 +36,3 @@ function mxp_is_selector_selected( $value, $expected_value ) {
 
 	return $selected;
 }
-
-function mxp_post_meta( $post_id, $meta_key, $default_value = '' ) {
-	$meta_value = get_metadata( 'post', $post_id, $meta_key, true );
-
-	if ( empty( $meta_value ) ) {
-		$meta_value = $default_value;
-	}
-
-	return $meta_value;
-}

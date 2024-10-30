@@ -148,7 +148,6 @@
 				post: orders
 			},
 			success: function (response) {
-				console.info(response);
 				if (response.result == 0)
 				{
 					const b64toBlob = (b64Data, contentType='', sliceSize=512) => {
@@ -234,7 +233,7 @@
 	{
 		$('#mixpakk_print_labels').attr('disabled', '');
 		var orders = [];
-		$('#the-list input[type="checkbox"][name="post[]"]:checked').each(function(index) 
+		$('#the-list input[type="checkbox"][name="post[]"]:checked, #the-list input[type="checkbox"][name="id[]"]:checked').each(function(index) 
 		{
 			orders.push($(this).val());
 		});
@@ -245,7 +244,144 @@
 			orders = await getLabels(orders, download);
 		}
 		$('#mixpakk_print_labels').removeAttr('disabled');
-		//.finally(() => {$('#mixpakk_print_labels').removeAttr('disabled');})
 	});
 
+	/**
+	 * CODES RESPONSIBLE FOR BOTH WOOCOMMERCE ADMIN ORDER LIST AND ADMIN ORDER PAGE
+	 */
+
+    function heartbeat_add_data(event, data) 
+    {
+        let ids = $('.mixpakk-submitting').map(function()
+        {
+            return $(this).attr("data-order-id");
+        }).get();
+
+        if (ids.length == 0)
+        {
+            $(document).unbind('heartbeat-send', heartbeat_add_data);
+            $(document).unbind('heartbeat-tick', heartbeat_process_data);
+            return;
+        }
+
+        data.mixpakkPendingStatus = ids;
+    }
+
+    function heartbeat_process_data(event, data)
+    {
+        if (!data.mixpakkUpdateStatus) 
+        {
+            return;
+        }
+
+        for (const [order_id, group_code] of Object.entries(data.mixpakkUpdateStatus)) 
+        {
+			let placeholder = $(`.mixpakk-submitting[data-order-id="${order_id}"]`);
+            if (group_code == null)
+            {
+                $(`[name="m_option[${order_id}]"].mixpakk-busy, [name="m_unit[${order_id}]"].mixpakk-busy, #mxp-submit.mixpakk-busy`).removeClass('mixpakk-busy');
+				$(`#mxp-submit`).prop('disabled', false);
+				$(`#mxp-groupid-delete`).remove();
+                $(`#order-${order_id}, #post-${order_id}`).addClass('mixpakk-failed');
+                placeholder.remove();
+            }
+            else
+            {
+                let dom_elem = $(`
+                    <span class="mixpakk-cell no-link" style="cursor: pointer;font-weight:600;color:#0073aa;" data-groupid="${group_code}">${group_code}</span>
+                `);
+				$(`[name="m_option[${order_id}]"].mixpakk-busy, [name="m_unit[${order_id}]"].mixpakk-busy, #mxp-submit`).remove();
+                $(`#mxp-groupid-delete`).removeClass('mixpakk-busy');
+                $(`#order-${order_id}, #post-${order_id}`).addClass('mixpakk-success');
+
+				placeholder.replaceWith(dom_elem);
+            }
+        }
+    };
+
+	$(document).on('click', '#mxp-groupid-delete', function (event) 
+	{
+		event.preventDefault();
+
+		let elem = $(this);
+		elem.prop('disabled', true);
+
+		$.ajax(
+			{
+				type: "POST",
+				url: ajaxurl,
+				data: {
+					action: 'mixpakk_delete_order',
+					nonce: $('#mxp_nonce').val(),
+					order: $('#post_ID').val(),
+				},
+				success: function (response) 
+				{
+					if (response.data.dom !== undefined)
+					{
+						$('#mxp_deliveo_id_box .inside').html(response.data.dom);
+					}
+				},
+				complete: function ()
+				{
+					elem.prop('disabled', false);
+				}
+			}
+		);
+	});
+
+	$(document).on('click', '#mxp-submit', function (event) 
+	{
+		event.preventDefault();
+		let order_id = $('#post_ID').val();
+
+		let post_data = {
+			action: 'mixpakk_submit_order',
+			nonce: $('#mxp_nonce').val(),
+			order: order_id,
+			m_option: {},
+			m_unit: {},
+		};
+
+		post_data.m_option[order_id] = $(`[name="m_option[${order_id}]"]`).val();
+		post_data.m_unit[order_id] = $(`[name="m_unit[${order_id}]"]`).val() ?? null;
+
+		let elem = $(this);
+		elem.prop('disabled', true);
+
+		$.ajax(
+			{
+				type: "POST",
+				url: ajaxurl,
+				data: post_data,
+				success: function (response) 
+				{
+					$(document).unbind('heartbeat-send', heartbeat_add_data);
+					$(document).unbind('heartbeat-tick', heartbeat_process_data);
+
+					if (response.data.dom !== undefined)
+					{
+						$('#mxp_deliveo_id_box .inside').html(response.data.dom);
+						if ($('.mixpakk-submitting').size() > 0)
+						{
+							$(document).on('heartbeat-tick', heartbeat_process_data);
+							$(document).on('heartbeat-send', heartbeat_add_data);
+							wp.heartbeat.interval('fast');
+						}
+					}
+				},
+				complete: function ()
+				{
+					elem.prop('disabled', false);
+				}
+			}
+		);
+	});
+
+	if ($('.mixpakk-submitting').size() > 0)
+	{
+		$(document).on('heartbeat-tick', heartbeat_process_data);
+		$(document).on('heartbeat-send', heartbeat_add_data);
+        wp.heartbeat.interval('fast');
+	}
 })(jQuery)

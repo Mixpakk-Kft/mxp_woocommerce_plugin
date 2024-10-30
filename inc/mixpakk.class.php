@@ -2,24 +2,20 @@
 
 class Mixpakk
 {
+    public $mixpakk_settings_obj;
+    public $mixpakk_settings;
 
     public function __construct($mixpakk_settings_obj)
     {
         $this->mixpakk_settings_obj   = $mixpakk_settings_obj;
         $this->mixpakk_settings       = $this->mixpakk_settings_obj->get_mixpakk_settings();
-        $this->export_details         = array();
-        $this->export_details_for_api = array();
-        $this->export_allowed         = false;
-        $this->admin_orders_url       = get_bloginfo('url') . '/wp-admin/edit.php?post_type=shop_order';
 
-        add_action('init', array($this, 'export_when_logged_in'));
         add_action('admin_enqueue_scripts', array($this, 'footer_scripts'));
         add_action('admin_enqueue_scripts', array($this, 'header_scripts'));
         add_action('wp_ajax_label_download', array($this, 'label_download'));
         add_action('wp_ajax_view_signature', array($this, 'view_signature'));
         add_action('wp_ajax_view_package_log', array($this, 'view_package_log'));
         add_action('wp_ajax_package_details', array($this, 'package_details'));
-        add_action('wp_ajax_api_custom_send', array($this, 'api_custom_send'));
         add_action('wp_ajax_mixpakk_generate_labels', array($this, 'generate_labels'));
 
         add_action('admin_notices', array($this, 'mixpakk_success_msg'));
@@ -29,8 +25,12 @@ class Mixpakk
 
         add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_VisztCsomagpontok'), 10, 2);
         add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_PickPackCsomagpont'), 10, 2);
+        add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_SzathmariCsomagpont'), 10, 2);
+        add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_FoxPostCsomagpont'), 10, 2);
         add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_SprinterPPP'), 10, 2);
         add_filter('mixpakk_order_filter_shipping_data', array($this, 'filterShipping_FurgeRomania'), 10, 2);
+        
+        add_action('mixpakk_submit', array($this, 'process_queue_item'), 10, 3);
     }
 
     public function footer_scripts($hook)
@@ -57,18 +57,6 @@ class Mixpakk
     {
         wp_register_style('mixpakk-admin-css', MIXPAKK_DIR_URL . 'css/mixpakk.css', false, '1.0.0');
         wp_enqueue_style('mixpakk-admin-css');
-    }
-
-    public function generate_csv($orders)
-    {
-
-        $order_items = $this->get_export_details($orders);
-
-        $csv_builder = new MIXPAKK_CSV_Builder($order_items);
-        $csv_content = $csv_builder->build_csv();
-
-        $csv_export = new MIXPAKK_CSV_Export();
-        $csv_export->export($csv_content);
     }
 
     /**
@@ -134,6 +122,42 @@ class Mixpakk
     }
 
     /**
+     * https://szathmari.hu/wordpress/15-csomagpont-bovitmeny-csomagkezeles-szallitas
+     */
+    public function filterShipping_SzathmariCsomagpont($customer_data, $order)
+    {
+        $shop_id = $order->get_meta('wc_selected_pont', true);
+
+        if (!empty($shop_id) && preg_match('/\|(?<point>[^\|]+)$/', $shop_id, $matches, PREG_UNMATCHED_AS_NULL) === 1)
+        {
+            $customer_data['shop_id'] = $matches['point'];
+        }
+
+        return $customer_data;
+    }
+
+    /**
+     * https://foxpost.hu/uzleti-partnereknek/integracios-segedlet#woocommerce-plugin
+     */
+    public function filterShipping_FoxPostCsomagpont($customer_data, $order)
+    {
+        $shop_id = $order->get_meta('_foxpost_wc_shipping_apt_id', true);
+        
+        if (!empty($shop_id))
+        {
+            $customer_data['consignee'] = $order->get_billing_last_name() . ' ' . $order->get_billing_first_name() . ' ' . $order->get_billing_company();
+            $customer_data['consignee_country'] = $order->get_billing_country();
+            $customer_data['consignee_zip'] = $order->get_billing_postcode();
+            $customer_data['consignee_city'] = $order->get_billing_city();
+            $customer_data['consignee_address'] = $order->get_billing_address_1();
+            $customer_data['consignee_apartment'] = $order->get_billing_address_2();
+            $customer_data['shop_id'] = $shop_id;
+        }
+        
+        return $customer_data;
+    }
+
+    /**
      * https://www.sprinter.hu/segedanyagok/sprinter-pick-pack-pont-woocommerce-plugin/
      */
     public function filterShipping_SprinterPPP($customer_data, $order)
@@ -173,181 +197,230 @@ class Mixpakk
         return $customer_data;
     }
     
-    public function send_by_api($orderID, $shipping = false, $unit = null)
+    public function process_queue_item($order_id, $shipping, $unit)
     {
-        $settings       = $this->mixpakk_settings;
-        $export_allowed = $this->export_allowed;
+        $order = wc_get_order($order_id);
 
-        if (isset($_GET['order'])) 
+        if ($order == false)
         {
-            // Get the packaging unit for the order
-            if (!is_null($unit)) 
+            return;
+        }
+
+        try
+        {
+            $result = $this->send_by_api($order, $shipping, $unit);
+            
+            if ($result['type'] == "error") 
             {
-                $packaging_unit = $unit;
-            } 
-            else 
-            {
-                $packaging_unit = $this->getPackagingUnit($orderID);
+                throw new \Mixpakk_Exception(sprintf('%2$s%3$s', $order_id, $result['msg'], (isset($result['field']) ? ': ' . $result['field'] : '')), false);
             }
-
-            $order_id = $orderID;
-
-            if (get_metadata('post', $order_id, '_mixpakk_exported', true) !== "true") 
+            else
             {
-                $shipping     = $shipping ? $shipping : $settings['delivery'];
-                $cod          = $this->get_cod($order_id);
-                $insurance    = (int)$settings['insurance'];
-                
-                if ($insurance == 1) 
+                if (!empty($result['data']))
                 {
-                    $insurance = get_metadata('post', $order_id, '_order_total', true);
+                    $order->update_meta_data('_mixpakk_exported', 'true');
+                    $order->update_meta_data('_group_code', $result['data'][0]);
+                    $order->add_order_note(sprintf('MXP API: ' . __('Csomagadatok rögzítve %1$s azonosítóval.', 'mixpakk'), $result['data'][0]));
+                    $order->save();
                 }
-
-                $currentOrder = new WC_Order($order_id);
-                $cartProducts = array();
-                $comment      = $currentOrder->get_customer_note() . ' ';
-
-                try
-                {
-                    $order_items = apply_filters('mixpakk_order_filter_items', $currentOrder->get_items(), $currentOrder);
-                }
-                catch (\Mixpakk_Exception $ex)
-                {
-                    throw new \Mixpakk_Exception($ex->getMessage() . ' (filter: ' . $ex->getFile() . ':' . $ex->getLine() . ')', $ex->doChangeStatus(), true);
-                }
-
-                // Iterate every order item line
-                foreach ($order_items as $item_id => $item_data) 
-                {
-                    $product = $item_data->get_product();
-
-                    $sku = $product->get_sku();
-
-                    // Weight and size parameter processing
-                    $weight_divider = get_option('woocommerce_weight_unit') == 'g' ? 1000 : 1;
-                    $weight = $product->get_weight();
-                    if (empty($weight)) 
-                    {
-                        $weight = 1;
-                    }
-                    else
-                    {
-                        $weight = floatval($weight) / $weight_divider;
-                    }
-
-                    switch(get_option('woocommerce_dimension_unit'))
-                    {
-                    case 'mm':
-                        $length_divider = 10;
-                        break;
-                    case 'm':
-                        $length_divider = 0.01;
-                    default:
-                        $length_divider = 1;
-                    }
-
-                    $x = $product->get_width();
-                    if (empty($x)) {
-                        $x = $settings['x'];
-                    }
-                    else
-                    {
-                        $x = floatval($x) / $length_divider;
-                    }
-                    $y = $product->get_height();
-                    if (empty($y)) {
-                        $y = $settings['y'];
-                    }
-                    else
-                    {
-                        $y = floatval($y) / $length_divider;
-                    }
-                    $z = $product->get_length();
-                    if (empty($z)) {
-                        $z = $settings['z'];
-                    }
-                    else
-                    {
-                        $z = floatval($z) / $length_divider;
-                    }
-
-                    // Add the item the required times
-                    for ($i = 0; $i < $item_data->get_quantity(); $i++) 
-                    {
-                        $cartProducts[] = array(
-                            "x"          => $x ?: 1,
-                            "y"          => $y ?: 1,
-                            "z"          => $z ?: 1,
-                            "weight"     => $weight ?: 1,
-                            "customcode" => $this->get_customcode_id($order_id) ?: '',
-                            "item_no"    => $sku ?: $product->get_name(),
-                        );
-                    }
-                }
-
-                $package = 
-                [
-                    'sender'               => $settings['sender'],
-                    'sender_country'       => $settings['sender_country_code'],
-                    'sender_zip'           => $settings['sender_zip'],
-                    'sender_city'          => $settings['sender_city'],
-                    'sender_address'       => $settings['sender_address'],
-                    'sender_apartment'     => $settings['sender_apartment'],
-                    'sender_phone'         => $settings['sender_phone'],
-                    'sender_email'         => $settings['sender_email'],
-                    'consignee'            => $currentOrder->get_shipping_last_name() . ' ' . $currentOrder->get_shipping_first_name() . ' ' . $currentOrder->get_shipping_company(),
-                    'consignee_country'    => $currentOrder->get_shipping_country(),
-                    'consignee_zip'        => $currentOrder->get_shipping_postcode(),
-                    'consignee_city'       => $currentOrder->get_shipping_city(),
-                    'consignee_address'    => $currentOrder->get_shipping_address_1(),
-                    'consignee_apartment'  => $currentOrder->get_shipping_address_2(),
-                    'consignee_phone'      => /*$currentOrder->get_shipping_phone() 5.5.1 WC doesn't support this call ?:*/ $currentOrder->get_billing_phone(),
-                    'consignee_email'      => $currentOrder->get_billing_email(),
-                    'delivery'             => $shipping,
-                    'priority'             => $settings['priority'],
-                    'optional_parameter_3' => $settings['saturday'],
-                    'optional_parameter_2' => $insurance,
-                    'cod'                  => $cod * ($settings['currency_multiplier'] ?? 1),
-                    'currency'             => $currentOrder->get_currency()/*get_option('woocommerce_currency')*/,
-                    'freight'              => $settings['freight'],
-                    'comment'              => $comment,
-                    'tracking'             => $this->get_tracking_id($order_id),
-                    'packaging_unit'       => $packaging_unit,
-                    'colli'                => $packaging_unit, // Deliveo update as of 2024 january
-                    'packages'             => $cartProducts,
-                    'API Connect Version'  => 'MXP Woocommerce Plugin v1.3.10',
-                ];
-
-                try
-                {
-                    $package = apply_filters('mixpakk_order_filter_shipping_data', $package, $currentOrder);
-                }
-                catch (\Mixpakk_Exception $ex)
-                {
-                    throw new \Mixpakk_Exception($ex->getMessage() . ' (filter: ' . $ex->getFile() . ':' . $ex->getLine() . ')', $ex->doChangeStatus(), true);
-                }
-
-                $mixpakk_api      = new Mixpakk_API($this->mixpakk_settings_obj);
-                $mixpakk_progress = $mixpakk_api->send_order_items($order_id, $package, $export_allowed);
-                // Lassítjuk a kérések küldését
-                usleep(300);
-
-                return $mixpakk_progress;
+                $this->mixpakk_settings_obj->set_delivered_order_status($order);
             }
+        }
+        catch (\Mixpakk_Exception $ex)
+        {
+            $order->add_order_note(__("MXP API: Hiba a feladás során: ", 'mixpakk') . $ex->getMessage());
+            $order->save();
+
+            if ($ex->doChangeStatus())
+            {
+                $order->update_status('wc-mxp-fail', 'MXP API:');
+            }
+            
+            throw $ex;
+        }
+        catch (\RuntimeException $ex)
+        {
+            $order->add_order_note(__("MXP API: Hiba a feladás során: ", 'mixpakk') . $ex->getMessage() . ' ' . $ex->getFile() . ':' . $ex->getLine());
+            $order->save();
+            
+            throw $ex;
         }
     }
 
-    public function getPackagingUnit($order_id)
+    public function send_by_api($order, $shipping = null, $unit = null)
     {
-        $packaging_unit = json_decode(get_option('mixpakk_settings'))->packaging_unit;
-        $order          = new WC_Order($order_id);
+        $settings = $this->mixpakk_settings;
+
+        // Get the packaging unit for the order
+        if (!is_null($unit)) 
+        {
+            $packaging_unit = $unit;
+        } 
+        else 
+        {
+            $packaging_unit = $this->getPackagingUnit($order);
+        }
+
+        if (empty($order->get_meta('_group_code', true, 'edit')))
+        {
+            $shipping     = $shipping ? $shipping : $settings['delivery'];
+            $cod          = $this->get_cod($order);
+            $insurance    = (int)$settings['insurance'];
+            
+            if ($insurance == 1) 
+            {
+                $insurance = $order->get_total();
+            }
+
+            $cartProducts = array();
+            $comment      = $order->get_customer_note();
+
+            try
+            {
+                $order_items = apply_filters('mixpakk_order_filter_items', $order->get_items(), $order);
+            }
+            catch (\Mixpakk_Exception $ex)
+            {
+                throw new \Mixpakk_Exception($ex->getMessage() . ' (filter: ' . $ex->getFile() . ':' . $ex->getLine() . ')', $ex->doChangeStatus(), true);
+            }
+
+            // Iterate every order item line
+            foreach ($order_items as $item_id => $item_data) 
+            {
+                $product = $item_data->get_product();
+
+                $sku = $product->get_sku();
+
+                // Weight and size parameter processing
+                $weight_divider = get_option('woocommerce_weight_unit') == 'g' ? 1000 : 1;
+                $weight = $product->get_weight();
+                if (empty($weight)) 
+                {
+                    $weight = 0.1;
+                }
+                else
+                {
+                    $weight = floatval($weight) / $weight_divider;
+                }
+
+                switch(get_option('woocommerce_dimension_unit'))
+                {
+                case 'mm':
+                    $length_divider = 10;
+                    break;
+                case 'm':
+                    $length_divider = 0.01;
+                default:
+                    $length_divider = 1;
+                }
+
+                $x = $product->get_width();
+                if (empty($x)) {
+                    $x = $settings['x'];
+                }
+                else
+                {
+                    $x = floatval($x) / $length_divider;
+                }
+                $y = $product->get_height();
+                if (empty($y)) {
+                    $y = $settings['y'];
+                }
+                else
+                {
+                    $y = floatval($y) / $length_divider;
+                }
+                $z = $product->get_length();
+                if (empty($z)) {
+                    $z = $settings['z'];
+                }
+                else
+                {
+                    $z = floatval($z) / $length_divider;
+                }
+
+                // Add the item the required times
+                for ($i = 0; $i < $item_data->get_quantity(); $i++) 
+                {
+                    $cartProducts[] = array(
+                        "x"          => $x ?: 1,
+                        "y"          => $y ?: 1,
+                        "z"          => $z ?: 1,
+                        "weight"     => $weight ?: 1,
+                        "customcode" => $this->get_customcode_id($order) ?: '',
+                        "item_no"    => $sku ?: $product->get_name(),
+                    );
+                }
+            }
+
+            if (method_exists($order, 'get_shipping_phone'))
+            {
+                $phone = $order->get_shipping_phone();
+            }
+            if (empty($phone))
+            {
+                $phone = $order->get_billing_phone();
+            }
+
+            $package = 
+            [
+                'sender'               => $settings['sender'],
+                'sender_country'       => $settings['sender_country_code'],
+                'sender_zip'           => $settings['sender_zip'],
+                'sender_city'          => $settings['sender_city'],
+                'sender_address'       => $settings['sender_address'],
+                'sender_apartment'     => $settings['sender_apartment'],
+                'sender_phone'         => $settings['sender_phone'],
+                'sender_email'         => $settings['sender_email'],
+                'consignee'            => $order->get_shipping_last_name() . ' ' . $order->get_shipping_first_name() . ' ' . $order->get_shipping_company(),
+                'consignee_country'    => $order->get_shipping_country(),
+                'consignee_zip'        => $order->get_shipping_postcode(),
+                'consignee_city'       => $order->get_shipping_city(),
+                'consignee_address'    => $order->get_shipping_address_1(),
+                'consignee_apartment'  => $order->get_shipping_address_2(),
+                'consignee_phone'      => $phone,
+                'consignee_email'      => $order->get_billing_email(),
+                'delivery'             => $shipping,
+                'priority'             => $settings['priority'],
+                'optional_parameter_3' => $settings['saturday'],
+                'optional_parameter_2' => $insurance,
+                'cod'                  => $cod * ($settings['currency_multiplier'] ?? 1),
+                'currency'             => $order->get_currency()/*get_option('woocommerce_currency')*/,
+                'freight'              => $settings['freight'],
+                'comment'              => $comment,
+                'tracking'             => $this->get_tracking_id($order),
+                'packaging_unit'       => $packaging_unit,
+                'colli'                => $packaging_unit, // Deliveo update as of 2024 january
+                'packages'             => $cartProducts,
+                'API Connect Version'  => 'MXP Woocommerce Plugin v1.4.0',
+            ];
+
+            try
+            {
+                $package = apply_filters('mixpakk_order_filter_shipping_data', $package, $order);
+            }
+            catch (\Mixpakk_Exception $ex)
+            {
+                throw new \Mixpakk_Exception($ex->getMessage() . ' (filter: ' . $ex->getFile() . ':' . $ex->getLine() . ')', $ex->doChangeStatus(), true);
+            }
+
+            $mixpakk_api      = new Mixpakk_API($this->mixpakk_settings_obj);
+            $mixpakk_progress = $mixpakk_api->send_order_items($order, $package);
+
+            return $mixpakk_progress;
+        }
+    }
+
+    public function getPackagingUnit(WC_Order $order_obj)
+    {
+        $packaging_unit = $this->mixpakk_settings['packaging_unit'];
 
         switch ((int) $packaging_unit) {
             case 0:
                 return 1;
                 break;
             case 1:
-                return $order->get_item_count();
+                return $order_obj->get_item_count();
                 break;
             case 2:
                 return false;
@@ -382,217 +455,44 @@ class Mixpakk
         }
     }
 
-    public function export_when_logged_in()
-    {
-        if (is_user_logged_in()) {
-            // $this->generate_csv();
-            // $this->send_by_api(null, null, null);
-        }
-    }
-
-    /* Details for exports by order ids. If the second param is true, the data structure is for API call */
-    public function get_export_details($order_ids, $for_api = false)
-    {
-        global $wpdb;
-
-        foreach ($order_ids as $order_id) {
-
-            $this->set_order_item_details($order_id);
-        }
-        if ($for_api) {
-            return $this->export_details_for_api;
-        } else {
-            return $this->export_details;
-        }
-    }
-
-
-    public function init_export_details_for_api($order_id)
-    {
-        $allSelected = explode(',', $_GET['generate_mixpakk_csv']);
-        $shipping    = '';
-
-        foreach ($allSelected as $selected) {
-            $details = explode('-', $selected);
-            if ($details[0] == $order_id) {
-                $shipping = $details[1];
-            }
-        }
-
-        $settings  = $this->mixpakk_settings;
-        $cod       = $this->get_cod($order_id);
-        $insurance = (int) $settings['insurance'];
-
-        if ($insurance == 1) {
-            $insurance = get_metadata('post', $order_id, '_order_total', true);
-        }
-
-        $this->export_details_for_api['order_id_' . $order_id] = array(
-            'sender'              => $settings['sender'],
-            'sender_country'      => $settings['sender_country_code'],
-            'sender_zip'          => $settings['sender_zip'],
-            'sender_city'         => $settings['sender_city'],
-            'sender_address'      => $settings['sender_address'],
-            'sender_apartment'    => $settings['sender_apartment'],
-            'sender_phone'        => $settings['sender_phone'],
-            'sender_email'        => $settings['sender_email'],
-            'consignee'           => get_metadata('post', $order_id, '_shipping_first_name', true) . ' ' . get_metadata('post', $order_id, '_shipping_last_name', true),
-            'consignee_country'   => 'HU',
-            'consignee_zip'       => get_metadata('post', $order_id, '_shipping_postcode', true),
-            'consignee_city'      => get_metadata('post', $order_id, '_shipping_city', true),
-            'consignee_address'   => get_metadata('post', $order_id, '_shipping_address_1', true),
-            'consignee_apartment' => get_metadata('post', $order_id, '_shipping_address_2', true),
-            'consignee_phone'     => get_metadata('post', $order_id, '_billing_phone', true),
-            'consignee_email'     => get_metadata('post', $order_id, '_billing_email', true),
-            'delivery'            => $shipping, //int(10) 'Szállítási opció',
-            'priority'            => $settings['priority'], //int(1) 'Elsőbbségi kézbesítés',
-            'saturday'            => $settings['saturday'], //int(1) 'Szombati késbesítés',
-            'insurance'           => $insurance,
-            'cod'                 => $cod, //decimal(10,2) 'Utánvét összege',
-            'freight'             => $settings['freight'],
-            'comment'             => ' ',
-            'packages'            => array(),
-        );
-    }
-
-
-
-    /* Set the details for CSV and API */
-    public function set_order_item_details($order_id)
-    {
-        global $wpdb;
-
-        $order_lines      = array();
-        $mixpakk_settings = $this->mixpakk_settings;
-
-        $query = 'SELECT * FROM ' . $wpdb->prefix . 'woocommerce_order_items woi
-            JOIN ' . $wpdb->prefix . 'woocommerce_order_itemmeta woim
-            ON (woi.order_item_id = woim.order_item_id)
-            JOIN ' . $wpdb->prefix . 'posts p
-            ON (woim.meta_value = p.ID)
-            WHERE woi.order_id = "' . $order_id . '" AND woim.meta_key = "_product_id"';
-
-        $results  = $wpdb->get_results($query);
-        $exported = get_metadata('post', $order_id, '_mixpakk_exported', true);
-        $comment  = $this->get_order_comment($order_id) . ' ';
-        
-
-        if ($exported !== 'true') {
-            $this->init_export_details_for_api($order_id);
-
-            foreach ($results as $result) {
-                $weight  = mitd_post_meta($result->ID, '_weight', 1) / 1000;
-                $x       = mitd_post_meta($result->ID, '_length', $mixpakk_settings['x']);
-                $y       = mitd_post_meta($result->ID, '_width', $mixpakk_settings['y']);
-                $z       = mitd_post_meta($result->ID, '_height', $mixpakk_settings['z']);
-                $item_no = get_metadata('post', $result->ID, '_sku', true);
-                $cod     = $this->get_cod($order_id[0]);
-                $qty     = (int) wc_get_order_item_meta($result->order_item_id, '_qty', true);
-
-                $this->export_allowed = true;
-
-                for ($i = 0; $i < $qty; $i++) {
-                    //Do not modify the order of this array item list. This array match for CSV header
-                    $this->export_details[] = array(
-                        'saturday'            => $mixpakk_settings['saturday'],
-                        'referenceid'         => $this->get_reference_id($order_id[0]),
-                        'cod'                 => $cod,
-                        'sender_id'           => '',
-                        'sender'              => $mixpakk_settings['sender'],
-                        'sender_country_code' => $mixpakk_settings['sender_country_code'],
-                        'sender_zip'          => $mixpakk_settings['sender_zip'],
-                        'sender_city'         => $mixpakk_settings['sender_city'],
-                        'sender_address'      => $mixpakk_settings['sender_address'],
-                        'sender_apartment'    => $mixpakk_settings['sender_apartment'],
-                        'sender_phone'        => $mixpakk_settings['sender_phone'],
-                        'sender_email'        => $mixpakk_settings['sender_email'],
-                        'consignee_id'        => '',
-                        'consignee'           => get_metadata('post', $order_id[0], '_shipping_first_name', true) . ' ' . get_metadata('post', $order_id[0], '_shipping_last_name', true),
-                        'consignee_zip'       => get_metadata('post', $order_id[0], '_shipping_postcode', true),
-                        'consignee_city'      => get_metadata('post', $order_id[0], '_shipping_city', true),
-                        'consignee_address'   => get_metadata('post', $order_id[0], '_shipping_address_1', true),
-                        'consignee_apartment' => get_metadata('post', $order_id[0], '_shipping_address_2', true),
-                        'consignee_phone'     => get_metadata('post', $order_id[0], '_billing_phone', true),
-                        'consignee_email'     => get_metadata('post', $order_id[0], '_billing_email', true),
-                        'weight'              => $weight,
-                        'comment'             => $comment,
-                        'group_id'            => '',
-                        'pick_up_point'       => '',
-                        'x'                   => $x,
-                        'y'                   => $y,
-                        'z'                   => $z,
-                        "customcode"          => $this->get_tracking_id($order_id[0]),
-                        'item_no'             => $item_no,
-                        'tracking'            => $this->get_tracking_id($order_id[0]),
-                    );
-
-                    $this->export_details_for_api['order_id_' . $order_id[0]]['comment']    = $comment;
-                    $this->export_details_for_api['order_id_' . $order_id[0]]['packages'][] = array(
-                        'weight'  => $weight,
-                        'x'       => $x,
-                        'y'       => $y,
-                        'z'       => $z,
-                        'item_no' => $item_no,
-                        'customcode' => $this->get_customcode_id($order_id),
-                    );
-                }
-            }
-        }
-    }
-
     /* if payment type is COD the cost will be the payment total */
-    private function get_cod($order_id)
+    protected function get_cod(WC_Order $order_obj)
     {
-        $payment_type = get_metadata('post', $order_id, '_payment_method', true);
-        $cod          = 0;
+        $ret = 0;
 
-        if ($payment_type == 'cod') {
-            $cod = get_metadata('post', $order_id, '_order_total', true);
+        if ($order_obj->get_payment_method() == 'cod') 
+        {
+            $ret = $order_obj->get_total();
         }
 
-        return $cod;
+        return $ret;
     }
 
     /** If user check the customcode id equal to order id on Mixpakk settings, the function return with order id as customcode id */
-    private function get_customcode_id($order_id)
+    protected function get_customcode_id(WC_Order $order_obj)
     {
-        $settings                 = $this->mixpakk_settings;
-        $customcode_id_is_order_id = (int) $settings['customcode_id_is_order_id'];
-        $customcode_id             = '';
+        $ret = '';
 
-        if ($customcode_id_is_order_id == 1) {
-            $customcode_id = '#' . $order_id;
+        if ($this->mixpakk_settings['customcode_id_is_order_id'] ?? false == true) 
+        {
+            $ret = '#' . $order_obj->get_order_number();
         }
 
-        return $customcode_id;
+        return $ret;
     }
 
     /** If user check the tracking id equal to order id on Mixpakk settings, the function return with order id as tracking id */
-    private function get_tracking_id($order_id)
+    protected function get_tracking_id(WC_Order $order_obj)
     {
-        $settings                = $this->mixpakk_settings;
-        $tracking_id_is_order_id = (int) $settings['tracking_id_is_order_id'];
-        $tracking_id             = '';
+        $ret = '';
 
-        if ($tracking_id_is_order_id == 1) {
-            $tracking_id = '#' . $order_id;
+        if ($this->mixpakk_settings['tracking_id_is_order_id'] ?? false == true) 
+        {
+            $ret = '#' . $order_obj->get_order_number();
         }
 
-        return $tracking_id;
+        return $ret;
     }
-
-    /** Get order comment */
-    private function get_order_comment($order_id)
-    {
-        global $wpdb;
-
-        $query  = 'SELECT post_excerpt FROM ' . $wpdb->prefix . 'posts WHERE post_type = "shop_order" AND ID = "' . $order_id . '"';
-        $result = $wpdb->get_row($query);
-
-        return '';
-        // return $result->post_excerpt;
-    }
-
 
     public function label_download()
     {
@@ -749,22 +649,6 @@ class Mixpakk
             
             set_time_limit(300);
 
-            // Cant get headers from wp_remote_* for some reason so using curl.
-            /*$response = wp_remote_request($request_url . '&deliveo_ids=' . implode(',', $current_group_ids), array(
-                'method' => 'GET',
-                'timeout' => 240,
-                'redirection' => 5,
-                'blocking' => true,
-            ));
-
-            if (is_wp_error($response)) 
-            {
-                throw new \Exception(__($response->get_error_message(), 'mixpakk'));
-            }
-
-            $output_json['data']['content'] = base64_encode($response['body']);
-            $output_json['data']['remaining'] = array_slice($group_ids, 25);*/
-
             $curl = curl_init($request_url . '&deliveo_ids=' . implode(',', $current_group_ids));
 
             curl_setopt($curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
@@ -804,7 +688,6 @@ class Mixpakk
 
         header('Content-Type: application/json');
         ?><?=json_encode($output_json)?><?php
-
         wp_die();
     }
 }
