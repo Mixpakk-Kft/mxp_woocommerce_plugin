@@ -24,7 +24,7 @@ class Mixpakk_Filter
         if ($hpos)
         {
             // Admin order table add columns (HPOS)
-            add_filter('manage_woocommerce_page_wc-orders_columns', array($this, 'add_mixpakk_columns_header'), 1);
+            add_filter('manage_woocommerce_page_wc-orders_columns', array($this, 'add_mixpakk_columns_header'), 20);
             add_action('manage_woocommerce_page_wc-orders_custom_column', array($this, 'add_order_group_code_column_content'), 20, 2);
             add_action('manage_woocommerce_page_wc-orders_custom_column', array($this, 'add_order_packaging_column_content'), 20, 2);
 
@@ -47,7 +47,7 @@ class Mixpakk_Filter
         else
         {
             // Admin order table add columns (Classic)
-            add_filter('manage_edit-shop_order_columns', array($this, 'add_mixpakk_columns_header'), 1);
+            add_filter('manage_edit-shop_order_columns', array($this, 'add_mixpakk_columns_header'), 20);
             add_action('manage_shop_order_posts_custom_column', array($this, 'add_order_group_code_column_content_classic'), 20, 2);
             add_action('manage_shop_order_posts_custom_column', array($this, 'add_order_packaging_column_content_classic'), 20, 2);
 
@@ -140,17 +140,17 @@ class Mixpakk_Filter
         {
             if ($is_submitting)
             {
-                $ret .= '<button id="mxp-submit" class="button-primary" disabled>' . __('Feltöltés', 'mixpakk') . '</button>';
-                $ret .= '<button id="mxp-groupid-delete" class="button-primary mixpakk-busy">' . __('Törlés', 'mixpakk') . '</button>';
+                $ret .= '<button type="button" id="mxp-submit" class="button-primary" disabled>' . __('Feltöltés', 'mixpakk') . '</button>';
+                $ret .= '<button type="button" id="mxp-groupid-delete" class="button-primary mixpakk-busy">' . __('Törlés', 'mixpakk') . '</button>';
             }
             else
             {
-                $ret .= '<button id="mxp-submit" class="button-primary">' . __('Feltöltés', 'mixpakk') . '</button>';
+                $ret .= '<button type="button" id="mxp-submit" class="button-primary">' . __('Feltöltés', 'mixpakk') . '</button>';
             }
         }
         else
         {
-            $ret .= '<button id="mxp-groupid-delete" class="button-primary">' . __('Törlés', 'mixpakk') . '</button>';
+            $ret .= '<button type="button" id="mxp-groupid-delete" class="button-primary">' . __('Törlés', 'mixpakk') . '</button>';
         }
 
         $ret .= '</div>';
@@ -162,7 +162,7 @@ class Mixpakk_Filter
     {
         ?><?=
             $this->generate_meta_box_content($order);
-        ?><?
+        ?><?php
     }
 
     public function deliveo_id_meta_box_wrapper() 
@@ -345,12 +345,12 @@ class Mixpakk_Filter
             switch ((int)$packaking_unit) 
             {
             case 0:
-                $ret = '<input class="no-link' . ($is_submitting ? ' mixpakk-busy' : '') . '" title="' . __('Csomagolási egység', 'mixpakk') . '" name="m_unit[' . $order->get_id() . ']" type="number" value="' . ($_REQUEST['m_unit'][$order->get_id()] ?? 1) . '" max="' . $max_package_count . '" min="1">';
+                $ret = '<input class="no-link mxp-packaging-unit' . ($is_submitting ? ' mixpakk-busy' : '') . '" title="' . __('Csomagolási egység', 'mixpakk') . '" name="m_unit[' . $order->get_id() . ']" type="number" value="' . ($_REQUEST['m_unit'][$order->get_id()] ?? 1) . '" max="' . $max_package_count . '" min="1">';
                 break;
             case 1:
             case 2:
             default:
-                $ret = '<input class="no-link' . ($is_submitting ? ' mixpakk-busy' : '') . '" title="' . __('Csomagolási egység', 'mixpakk') . '" name="m_unit[' . $order->get_id() . ']" type="number" value="' . ($_REQUEST['m_unit'][$order->get_id()] ?? $max_package_count) . '" max="' . $max_package_count . '" min="1">';
+                $ret = '<input class="no-link mxp-packaging-unit' . ($is_submitting ? ' mixpakk-busy' : '') . '" title="' . __('Csomagolási egység', 'mixpakk') . '" name="m_unit[' . $order->get_id() . ']" type="number" value="' . ($_REQUEST['m_unit'][$order->get_id()] ?? $max_package_count) . '" max="' . $max_package_count . '" min="1">';
                 break;
             }
         }

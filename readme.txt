@@ -16,7 +16,7 @@ MXP Webshoplogisztika és Futárszolgálat csomagfeladó plugin WooCommerce webs
 
 A plugin használatához érvényes szerződéssel kell rendelkezned a Mixpakk Kft-vel.
 
-[Ajánlatkérés] https://mixpakk.hu/kapcsolat/
+[Ajánlatkérés](https://mixpakk.hu/kapcsolat/)
 
 
 A bővítmény a Mav-IT Deliveo szoftverrel való összekötést biztosítja, így annak szolgáltatására támaszkodik (deliveo.eu).
@@ -37,8 +37,6 @@ A Mav-IT Kft. Adatkezelési Tájékoztatója: https://mav-it.hu/adatkezelesi-taj
 2. Telepítsd és kapcsold be a bővítményt a Wordpress Plugin kezelő felületén
 3. Add meg a csatlakozáshoz szükséges adatokat a WooCommerce -> Mixpakk menüpontban
 4. Add fel rendeléseidet a WooCommerce -> Rendelések menüben
-
-== 
 
 == Changelog ==
 

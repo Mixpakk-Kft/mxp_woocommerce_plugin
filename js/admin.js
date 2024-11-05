@@ -378,6 +378,14 @@
 		);
 	});
 
+	$(document).on('keydown', 'input.mxp-packaging-unit', function (event) 
+	{
+		if (event.key == 'Enter') 
+		{
+			event.preventDefault();
+		}
+	});
+
 	if ($('.mixpakk-submitting').size() > 0)
 	{
 		$(document).on('heartbeat-tick', heartbeat_process_data);
