@@ -7,7 +7,7 @@ Developer Email: it@mxp.hu
 Text Domain: mxp
 License: GNU General Public License v3.0
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
-Version: 1.4.0
+Version: 1.4.1
 Tested up to: 6.5.4
 
 MXP Webshoplogisztika és Futárszolgálat csomagfeladó plugin WooCommerce webshopokhoz
@@ -39,6 +39,9 @@ A Mav-IT Kft. Adatkezelési Tájékoztatója: https://mav-it.hu/adatkezelesi-taj
 4. Add fel rendeléseidet a WooCommerce -> Rendelések menüben
 
 == Changelog ==
+
+= 1.4.1 =
+* Filter bug javítás
 
 = 1.4.0 =
 * Woocommerce High Performance Order Storage kompatibilitás.

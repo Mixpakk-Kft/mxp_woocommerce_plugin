@@ -266,7 +266,7 @@ class Mixpakk
             $shipping     = $shipping ? $shipping : $settings['delivery'];
             $cod          = $this->get_cod($order);
             $insurance    = (int)$settings['insurance'];
-            
+             
             if ($insurance == 1) 
             {
                 $insurance = $order->get_total();
@@ -277,7 +277,7 @@ class Mixpakk
 
             try
             {
-                $order_items = apply_filters('mixpakk_order_filter_items', $order->get_items(), $order);
+                $order_items = apply_filters('mixpakk_order_filter_items', $order->get_items(), clone $order);
             }
             catch (\Mixpakk_Exception $ex)
             {
@@ -392,12 +392,12 @@ class Mixpakk
                 'packaging_unit'       => $packaging_unit,
                 'colli'                => $packaging_unit, // Deliveo update as of 2024 january
                 'packages'             => $cartProducts,
-                'API Connect Version'  => 'MXP Woocommerce Plugin v1.4.0',
+                'source'               => 'MXP WC Plugin 1.4.1',
             ];
 
             try
             {
-                $package = apply_filters('mixpakk_order_filter_shipping_data', $package, $order);
+                $package = apply_filters('mixpakk_order_filter_shipping_data', $package, clone $order);
             }
             catch (\Mixpakk_Exception $ex)
             {
@@ -630,7 +630,7 @@ class Mixpakk
             $order_ids = array();
             foreach ($_POST['post'] as $order_id)
             {
-                $order_o = new WC_Order($order_id);
+                $order_o = wc_get_order($order_id);
                 $group_id = $order_o->get_meta('_group_code');
                 if (!empty($group_id))
                 {

@@ -809,7 +809,7 @@ class Mixpakk_Filter
             {
                 $this->do_bulk_order_submit_option(null, 'mixpakk_submit', [ $order ]);
                 // Reload
-                $order = wc_get_order($order->get_id());
+                $order->read_meta_data(true);
             }
             else
             {
